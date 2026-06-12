@@ -4,9 +4,9 @@
 |---|---|
 | **File** | `_workflow/workflow.md` |
 | **Purpose** | Single source of truth for how Cowork and Claude Code work together to take a feature from idea to merged PR |
-| **Version** | 0.3 |
-| **Updated by** | Dip |
-| **Last updated** | 28/05/2026 11:36 UTC |
+| **Version** | 0.4 |
+| **Updated by** | Cowork |
+| **Last updated** | 12/06/2026 UTC |
 
 > Revision history is at the bottom of this file.
 
@@ -74,14 +74,17 @@ Branch naming: `claude/feature/<area>--<module>` (e.g. `claude/feature/account--
 
 ### Step 1 — Orient
 
-Read only the **relevant module section** of the working prototype — not the whole file:
+Read these in order before discussing anything:
 
 ```
-_UI/ui_working/mypal-app-working.jsx   ← Cowork's working copy (editable)
-_UI/ui-prototype.md                    ← structural guide (file layout, design system, CSS classes)
+_UI/CLAUDE.md                          ← editing rules, shared constants, post-edit checklist
+_UI/ui-prototype.md                    ← structural guide (SUBNAV map, CSS classes, design contract)
+_UI/ui_working/mypal-app-working.jsx   ← Cowork's working copy — read the relevant section only
 ```
 
-Do not read the whole JSX file. The working file is large (~400KB); read the section that covers the module being discussed.
+**Do not read the whole JSX file.** It is large (~400KB). Use `grep` or `Read` with an offset to locate the specific screen function or component. Read 30–50 lines of context around the insertion point.
+
+After reading, identify the shared helpers you will reuse: which `T.xxx` tokens, which style constants (`fldLbl`, `fldInp`, `modalShell`, `rowBase`), which CSS classes (`.btn-sm`, `.card`, etc.). You will name these explicitly in Step 3.
 
 ### Step 2 — Discuss
 
@@ -89,7 +92,14 @@ Understand what needs to change before proposing anything. Ask clarifying questi
 
 ### Step 3 — Propose
 
-Describe the proposed changes in chat. **Do not touch any file at this stage.** The proposal is text only — what will change, where, and why.
+Describe the proposed changes in chat. **Do not touch any file at this stage.** The proposal must include:
+
+1. **What changes** — which section/component and what it does differently
+2. **Where** — the screen function name and approximate location in the file
+3. **Shared helpers to reuse** — name every `T.xxx` token, style constant (`fldLbl`, `modalShell`, etc.), and CSS class (`.btn-sm`, `.card`, etc.) the change will use
+4. **New state or data** — any new `useState` hooks or local data constants being added
+
+A proposal that says "I'll add a modal" without naming `modalShell`, `fldLbl`, and `fldInp` is incomplete. Dip should be able to verify the approach from the proposal alone.
 
 ### Step 4 — Await explicit approval
 
@@ -264,7 +274,7 @@ branch02           C ──── rebase ──── C' ───────�
 
 | Rule | Detail |
 |------|--------|
-| **Source of truth for reads** | `~/Documents/MyDigitalPals/` — the git repo. Never read from `~/Documents/Claude/Projects/MyDigitalPals/` (write-only outputs folder) |
+| **Source of truth for reads** | `~/Documents/project/MyPal/` — the git repo. Never read from `~/Documents/Claude/Projects/MyDigitalPals/` (write-only outputs folder) |
 | **UI visual contract** | `_UI/mypal-app.jsx` — approved, canonical. Claude Code reads this. Cowork never edits this directly |
 | **UI working copy** | `_UI/ui_working/mypal-app-working.jsx` — Cowork edits this only. Dip copies to canonical after approval |
 | **One branch per feature** | All work (spec → plan → implementation) happens on the same `claude/feature/<slug>` branch |
@@ -290,10 +300,9 @@ branch02           C ──── rebase ──── C' ───────�
 | Spec template | `.claude/commands/references/feature_spec_template.md` |
 | Tech plan template | `.claude/commands/references/tech_plan_template.md` |
 | Slash commands | `.claude/commands/` |
-| DB schema baseline (read-only) | `mypal-schema.sql` |
-| Architecture doc | `MyDigitalPal_architecture.md` |
-| Architecture decisions (ADRs) | `architecture_decisions.md` |
-| Access control spec | `_specs/platform--access-control.md` |
+| Architecture doc | `docs/architecture.md` |
+| Architecture decisions (ADRs) | `docs/adrs.md` |
+| UI prototype editing rules | `_UI/CLAUDE.md` |
 | This file | `_workflow/workflow.md` |
 
 ---
@@ -311,3 +320,4 @@ branch02           C ──── rebase ──── C' ───────�
 | 0.1 | Dip | 27/05/2026 | Initial version — captures Cowork 6-step UI workflow (orient, discuss, propose, approve, edit, close-out) and Claude Code 6-step workflow (/feature_spec → /tech_spec → /tech_implement → PR); approval phrases defined; no-widget rule; working file vs canonical file distinction; replaces COWORK.md |
 | 0.2 | Dip | 27/05/2026 | Branching strategy finalised — Cowork creates branch before any file edit (Step 0); branch naming claude/feature/<area>--<module>; parallel feature branches created from main; Code rebases onto main before /tech_implement if main has new commits; branching strategy section added |
 | 0.3 | Dip | 28/05/2026 11:36 | Aligned the header and revision-history format to the CLAUDE.md convention: `Last updated by` → `Updated by`, added a Version row, timestamps now carry a UTC label, and history columns renamed to Version / Updated by / Last updated (UTC) / Summary of changes. |
+| 0.4 | Cowork | 12/06/2026 UTC | Strengthened Cowork Step 1 (Orient): mandates reading _UI/CLAUDE.md first, then ui-prototype.md, then the relevant JSX section; requires naming shared helpers after orienting. Strengthened Step 3 (Propose): proposal must name the T.xxx tokens, style constants, and CSS classes to be reused. Fixed stale source-of-truth path (MyDigitalPals → project/MyPal). Updated File Reference table to remove old-project files and add correct paths. |

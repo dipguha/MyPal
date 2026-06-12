@@ -1,8 +1,14 @@
 # MyPal UI Prototype Guide
-**File:** `_UI/mypal-app.jsx`  
-**Purpose:** Reference guide for Claude design when reading, editing, or extending the prototype.  
-**Version:** 1.1
-**Last updated:** 30-May-2026
+
+| | |
+|---|---|
+| **File** | `_UI/ui-prototype.md` |
+| **Purpose** | Reference guide for reading, editing, or extending the prototype. Read before any prototype session. |
+| **Version** | 1.2 |
+| **Updated by** | Cowork |
+| **Last updated** | 12/06/2026 UTC |
+
+**Maintaining this file.** Every edit must: (1) bump the version, (2) update **Last updated** to the current UTC time, (3) set **Updated by**, (4) append a row to the revision history at the bottom. Only update Section 5 (SUBNAV) and Section 9 when structure actually changes — never update line-number ranges in Section 2.
 
 ---
 
@@ -111,17 +117,18 @@ Suffix convention: base colour = `T.rose`; tint swatch = `T.roseS` (rgba 13%).
 
 ```js
 const NAV = [
-  { id:"home",      icon:"🌐", label:"Home",       type:"public" },
-  { id:"signup",    icon:"✍️", label:"Sign Up",    type:"public" },
-  { id:"signin",    icon:"🔑", label:"Sign In",    type:"public" },
-  { id:"onboarding",icon:"🚀", label:"Onboarding", type:"public" },
+  { id:"home",       icon:"🌐", label:"Home",                 type:"public" },
+  { id:"signup",     icon:"✍️", label:"Sign Up",              type:"public" },
+  { id:"signin",     icon:"🔑", label:"Sign In",              type:"public" },
   null,  // ← renders a divider
-  { id:"today",     icon:"🌅", label:"Today",      color:T.warm   },
-  { id:"lifeadmin", icon:"📋", label:"Life Admin", color:T.teal   },
-  { id:"finance",   icon:"💷", label:"Finance",    color:T.sage   },
-  { id:"health",    icon:"🩺", label:"Health",     color:T.rose   },
-  { id:"lifestyle", icon:"🎯", label:"Lifestyle",  color:T.violet },
-  { id:"account",   icon:"👤", label:"My Account", color:T.sky    },
+  { id:"today",      icon:"🌅", label:"Today",                color:T.warm   },
+  { id:"lifeadmin",  icon:"📋", label:"Life Admin",           color:T.teal   },
+  { id:"finance",    icon:"💷", label:"Finance",              color:T.sage   },
+  { id:"health",     icon:"🩺", label:"Health",               color:T.rose   },
+  { id:"recipes",    icon:"🍳", label:"Recipes & Groceries",  color:T.lime   },
+  { id:"travel",     icon:"✈️", label:"Travel",               color:T.sky    },
+  { id:"account",    icon:"👤", label:"My Account",           color:T.sky    },
+  { id:"onboarding", icon:"🚀", label:"Onboarding",           color:T.violet },
 ];
 ```
 
@@ -144,10 +151,12 @@ const NAV = [
 
 ```js
 const SUBNAV = {
-  today:     ["Daily Briefing","MyPal AI"],
-  lifeadmin: ["Tasks","Household Info","Documents","Cars & Home","Pet Care"],
+  today:     ["Daily Briefing"],
+  lifeadmin: ["Tasks","Key Dates","Household Info","Documents","Cars & Home","Pet Care"],
   finance:   ["Overview","Budget Envelopes","Transactions","Bills & Subs","Admin","My Finance"],
-  health:    ["Overview","Profiles","Medications","Preventive Care","Emergency Info","Appointments","Journal"],
+  health:    ["Overview","Profiles","Medications","Appointments","Emergency Info","Journal"],
+  recipes:   ["Library","Meal Planner","Grocery List","Nutrition"],
+  travel:    ["My Trips","Packing Templates","Travel Ready"],
   account:   ["My Profile","Family Members","Preferences","Access","Security & Privacy"],
 };
 ```
@@ -304,10 +313,10 @@ Four tiers: `self`, `hmg`, `family`, `individual`. Used by `NoteRecipientPicker`
 | Area | Modules | Phase |
 |---|---|---|
 | Today | Daily Briefing | 1 |
-| Life Admin | Tasks · Household Info · Documents · Cars & Home · Pet Care | 1 |
+| Life Admin | Tasks · Key Dates · Household Info · Documents · Cars & Home · Pet Care | 1 |
 | Finance | Overview · Budget Envelopes · Transactions · Bills & Subs · Admin · My Finance | 1 |
-| Health | Overview · Profiles · Medications · Preventive Care · Emergency Info · Appointments · Journal | 1 |
-| Recipes & Groceries | Library · Meal Planner · Grocery List · Nutrition (Phase 2) | 1/2 |
+| Health | Overview · Profiles · Medications · Appointments · Emergency Info · Journal | 1 |
+| Recipes & Groceries | Library · Meal Planner · Grocery List · Nutrition | 1/2 |
 | Travel | My Trips · Packing Templates · Travel Ready | 2 (placeholder) |
 | My Account | My Profile · Family Members · Preferences · Access · Security & Privacy | 1 |
 
@@ -471,3 +480,14 @@ Section body immediately follows with `borderRadius:"0 0 8px 8px", borderTop:"no
 ### 12.6 Revision note
 
 This section was added 30-May-2026 after identifying that modals and rows were drifting apart across the Health → Appointments module iterations because each new modal/row was written from memory rather than from a shared contract.
+
+
+---
+
+## Revision history
+
+| Version | Updated by | Last updated (UTC) | Summary |
+|---|---|---|---|
+| 1.0 | Dip | 24/05/2026 UTC | Initial version — file structure, design system tokens, CSS class reference, screen component pattern. |
+| 1.1 | Dip | 30/05/2026 UTC | Added Section 12 (Design Contract for modals and rows): shared style constants, modal anatomy, list row anatomy, status badge colours, GroupHdr pattern. Added revision note. |
+| 1.2 | Cowork | 12/06/2026 UTC | Added proper document header and revision history. Updated NAV and SUBNAV to match actual prototype (added recipes/travel, removed lifestyle; updated module lists). Updated Section 9.1 confirmed module structure. Added _UI/CLAUDE.md to file ownership table. |
