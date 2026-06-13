@@ -1,6 +1,6 @@
 -- ================================================================
---  MyPal — Schema File (v3.0, corrected)
---  61 tables · PostgreSQL 15+ / Aurora Serverless v2
+--  MyPal — Schema File (v3.1, ADR-003 aligned)
+--  55 tables · PostgreSQL 15+ / Aurora Serverless v2
 --
 --  RUN:
 --    psql -U postgres -d mypal -f mypal-schema.sql
@@ -8,10 +8,21 @@
 --
 -- ================================================================
 --
+--  v3.1 — ADR-003 ALIGNMENT (see docs/adrs.md ADR-003)
+--  ───────────────────────────────────────────────────────────────
+--    account_types  table REMOVED — accounts.plan (VARCHAR + CHECK) is the
+--                   single source of truth. accounts.account_type_id dropped.
+--    social_logins  table REMOVED — Cognito owns OAuth connections; we do not
+--                   mirror provider links locally. idx_social_user dropped.
+--    accounts.plan  values reduced to 'solo' | 'family' (was 'free' /
+--                   'solo_pro' / 'family'); default is 'solo'.
+--    Member limit (1 solo, 6 family) is enforced in Rails app logic, not a
+--    DB lookup row. Authoritative source = db/migrate/; this file is reference.
+--
 --  RELATIONSHIP FIXES vs previous version
 --  ───────────────────────────────────────────────────────────────
 --  ANSWERED: member_roles has no member_id — this is CORRECT.
---    member_roles is a LOOKUP table (same pattern as account_types).
+--    member_roles is a LOOKUP table (same pattern as other lookups, e.g. news_categories).
 --    The link is: members.role_id SMALLINT FK → member_roles.id
 --    A member POINTS TO a role. A role does not contain member IDs.
 --
@@ -46,12 +57,12 @@
 --    (no clause / RESTRICT never used — would block member deletion)
 --
 -- ================================================================
---  TABLE INVENTORY  (57 tables)
+--  TABLE INVENTORY  (55 tables)
 -- ================================================================
---  Block  1  Identity & Settings   (9)
---            account_types, accounts, users,
+--  Block  1  Identity & Settings   (7)
+--            accounts, users,
 --            member_roles, role_permissions, members,
---            social_logins, account_settings, member_settings
+--            account_settings, member_settings
 --  Block  2  Notifications         (1)  notifications
 --  Block  3  Daily Briefing        (6)
 --            news_categories, news_sources,
@@ -91,25 +102,15 @@ CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 --  BLOCK 1 — IDENTITY & SETTINGS  (9 tables)
 -- ================================================================
 
--- [1.1] account_types  (lookup — accounts.account_type_id → id)
-CREATE TABLE account_types (
-    id            SMALLSERIAL  PRIMARY KEY,
-    code          VARCHAR(20)  NOT NULL UNIQUE,
-    display_name  VARCHAR(100) NOT NULL,
-    max_members   SMALLINT     NOT NULL DEFAULT 1,
-    description   TEXT,
-    is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
-    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-COMMENT ON TABLE account_types IS 'Lookup: plan types. accounts.account_type_id → id. Add new types via INSERT only.';
-
--- [1.2] accounts
+-- [1.1] accounts
+--   plan: 'solo' (Individual, £2.99/mo) | 'family' (Family, £4.99/mo) — ADR-003.
+--   account_type_id removed (account_types table dropped); plan is the single
+--   source of truth. Member limit (1 solo, 6 family) enforced in Rails app logic.
 CREATE TABLE accounts (
     id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    account_type_id  SMALLINT    NOT NULL REFERENCES account_types(id),
     family_name      VARCHAR(150),
-    plan             VARCHAR(20) NOT NULL DEFAULT 'free'
-                         CHECK (plan IN ('free','solo_pro','family')),
+    plan             VARCHAR(20) NOT NULL DEFAULT 'solo'
+                         CHECK (plan IN ('solo','family')),
     plan_started_at  TIMESTAMPTZ,
     plan_expires_at  TIMESTAMPTZ,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -118,7 +119,7 @@ CREATE TABLE accounts (
 );
 COMMENT ON TABLE accounts IS 'Top-level entity. All family data scoped via account_id.';
 
--- [1.3] users  (one per human who can log in)
+-- [1.2] users  (one per human who can log in)
 CREATE TABLE users (
     id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     account_id      UUID         NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
@@ -134,12 +135,12 @@ CREATE TABLE users (
 );
 COMMENT ON TABLE users IS 'Auth identity. cognito_sub = Cognito sub claim. Children may have no user row.';
 
--- [1.4] member_roles  (lookup + self-referential hierarchy)
+-- [1.3] member_roles  (lookup + self-referential hierarchy)
 -- ──────────────────────────────────────────────────────────────
 --  HOW THIS TABLE LINKS TO members:
 --
 --  member_roles is a LOOKUP table — it stores role DEFINITIONS.
---  It works exactly like account_types.
+--  It works exactly like any other lookup table (e.g. news_categories).
 --
 --  The link direction is:   members.role_id FK ──▶ member_roles.id
 --
@@ -172,7 +173,7 @@ COMMENT ON TABLE member_roles IS
    parent_role_id (self-ref): admin → partner → member → child.
    Stores WHAT roles ARE. WHO has them is in members.role_id.';
 
--- [1.5] role_permissions
+-- [1.4] role_permissions
 CREATE TABLE role_permissions (
     id          SERIAL       PRIMARY KEY,
     role_id     SMALLINT     NOT NULL REFERENCES member_roles(id) ON DELETE CASCADE,
@@ -183,7 +184,7 @@ CREATE TABLE role_permissions (
 );
 COMMENT ON TABLE role_permissions IS 'Capability flags per role. App queries for permission checks.';
 
--- [1.6] members  (one profile per person)
+-- [1.5] members  (one profile per person)
 -- role_id → member_roles is the link between a person and their role
 CREATE TABLE members (
     id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -207,18 +208,7 @@ COMMENT ON TABLE members IS
    role_id → member_roles: member POINTS TO role definition.
    user_id NULL = child with no login.';
 
--- [1.7] social_logins
-CREATE TABLE social_logins (
-    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id          UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider         VARCHAR(20) NOT NULL CHECK (provider IN ('google','facebook','apple','phone','email')),
-    provider_user_id VARCHAR(255) NOT NULL,
-    email            CITEXT,
-    linked_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (provider, provider_user_id)
-);
-
--- [1.8] account_settings  (one per account)
+-- [1.6] account_settings  (one per account)
 CREATE TABLE account_settings (
     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     account_id      UUID        NOT NULL UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
@@ -230,7 +220,7 @@ CREATE TABLE account_settings (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- [1.9] member_settings  (one per member)
+-- [1.7] member_settings  (one per member)
 CREATE TABLE member_settings (
     id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     member_id           UUID        NOT NULL UNIQUE REFERENCES members(id) ON DELETE CASCADE,
@@ -1152,7 +1142,6 @@ CREATE INDEX idx_users_cognito        ON users(cognito_sub);
 CREATE INDEX idx_members_account      ON members(account_id);
 CREATE INDEX idx_members_user         ON members(user_id);
 CREATE INDEX idx_members_role         ON members(role_id);
-CREATE INDEX idx_social_user          ON social_logins(user_id);
 CREATE INDEX idx_role_perms_role      ON role_permissions(role_id);
 CREATE INDEX idx_notif_member         ON notifications(member_id, read_at);
 CREATE INDEX idx_briefing_cache       ON briefing_cache(member_id, cache_date);
