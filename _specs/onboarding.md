@@ -41,7 +41,7 @@ As a new MyPal user, I want to be guided through setting up my profile, briefing
 - Push notification permission prompts — Phase 2
 
 ### Dependencies
-- `_specs/sign-up.md` — sign-up routes to onboarding on successful verification
+- `_specs/platform--sign-up.md` — sign-up routes to onboarding on successful verification
 - `_specs/sign-in.md` — users with `onboarding_complete = false` are routed here on sign-in
 - `_specs/platform--access-control.md` — roles assigned during onboarding (Admin, Adult Member, Teenager, Children)
 - Family Invitation spec (not yet written) — covers the invited member's acceptance journey
