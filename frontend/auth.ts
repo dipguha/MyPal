@@ -4,7 +4,7 @@ import Cognito from "next-auth/providers/cognito";
 
 import { initiateUserPasswordAuth } from "@/lib/cognito-auth";
 
-const FASTAPI = process.env.FASTAPI_INTERNAL_URL ?? "http://localhost:8000";
+const RAILS = process.env.RAILS_INTERNAL_URL ?? "http://localhost:3001";
 
 export type AccountType = "solo" | "family";
 
@@ -24,13 +24,13 @@ interface AuthMe {
   accountType: AccountType | null;
 }
 
-/** Fetches the auth-me view from FastAPI. Returns conservative defaults on
+/** Fetches the auth-me view from the Rails API. Returns conservative defaults on
  * error rather than throwing — a transient backend failure should not block
  * sign-in; it just sends the user through onboarding once more.
  */
 async function fetchAuthMe(accessToken: string): Promise<AuthMe> {
   try {
-    const res = await fetch(`${FASTAPI}/api/v1/auth/me`, {
+    const res = await fetch(`${RAILS}/api/v1/auth/me`, {
       headers: { Authorization: `Bearer ${accessToken}` },
       cache: "no-store",
     });
@@ -104,7 +104,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
 
       // On fresh sign-in OR explicit useSession().update() call, refresh the
-      // backend flags. Cached on subsequent requests so we don't hit FastAPI
+      // backend flags. Cached on subsequent requests so we don't hit the API
       // on every page navigation.
       const shouldRefresh =
         !!user ||

@@ -1,0 +1,29 @@
+require:
+  - rubocop-rails
+
+AllCops:
+  TargetRubyVersion: 3.3
+  NewCops: enable
+  Exclude:
+    - "bin/**/*"
+    - "config/**/*"
+    - "db/migrate/**/*"
+    - "db/schema.rb"
+    - "vendor/**/*"
+    - "tmp/**/*"
+    - "storage/**/*"
+
+# API app — pragmatic relaxations.
+Style/Documentation:
+  Enabled: false
+Style/FrozenStringLiteralComment:
+  Enabled: false
+Metrics/MethodLength:
+  Max: 30
+Metrics/AbcSize:
+  Max: 30
+
+# `is_hmg?` matches the access-control domain term (`is_hmg` column/param).
+Naming/PredicatePrefix:
+  AllowedMethods:
+    - is_hmg?

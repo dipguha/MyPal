@@ -1,0 +1,30 @@
+source 'https://rubygems.org'
+
+gem 'pg', '~> 1.1'
+gem 'puma', '>= 5.0'
+gem 'rails', '~> 7.2.3', '>= 7.2.3.1'
+
+# Authorisation, serialisation, JWT (see backend/CLAUDE.md + ADR-015)
+gem 'blueprinter'
+gem 'jwt'
+gem 'pundit'
+gem 'rack-cors'
+
+# Boot caching; required in config/boot.rb
+gem 'bootsnap', require: false
+
+# Windows does not include zoneinfo files, so bundle the tzinfo-data gem
+gem 'tzinfo-data', platforms: %i[windows jruby]
+
+group :development, :test do
+  gem 'database_cleaner-active_record'
+  gem 'debug', platforms: %i[mri windows], require: 'debug/prelude'
+  gem 'dotenv-rails'
+  gem 'factory_bot_rails'
+  gem 'faker'
+  gem 'rspec-rails'
+end
+
+group :development do
+  gem 'rubocop-rails', require: false
+end

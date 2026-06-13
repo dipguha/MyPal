@@ -1,0 +1,46 @@
+# MyPal local dev — Rails API + its own Postgres.
+#
+# The DB is a fresh, isolated instance (own volume `mypal_pgdata`). It does NOT
+# touch the MyDigitalPals Postgres/`mypal` database. The cached `postgres:16`
+# image is reused. Host port 5433 avoids clashing with the MyDigitalPals
+# container's 5432.
+#
+# Frontend runs on the host (`cd frontend && npm run dev`) and reaches the API
+# at http://localhost:3001 via RAILS_INTERNAL_URL.
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: mypal
+      POSTGRES_PASSWORD: mypal
+      POSTGRES_DB: mypal_development
+    volumes:
+      - mypal_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mypal -d mypal_development"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    command: bash -c "rm -f tmp/pids/server.pid; bundle check || bundle install; bin/rails server -b 0.0.0.0 -p 3001"
+    volumes:
+      - ./backend:/app
+      - bundle_data:/usr/local/bundle
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  mypal_pgdata:
+  bundle_data:
