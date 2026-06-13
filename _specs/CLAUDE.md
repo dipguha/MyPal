@@ -1,8 +1,8 @@
 # _specs/ — Directory Context
 
-> **Version:** 1.2
-> **Updated by:** Dip
-> **Last updated:** 01/06/2026 18:02 UTC
+> **Version:** 1.3
+> **Updated by:** Cowork
+> **Last updated:** 12/06/2026 18:25 UTC
 
 This directory contains feature specs for MyPal. Each spec drives one or more Claude Code implementation cycles (`/tech_spec` → `/tech_implement`). Read this file before working with any spec.
 
@@ -75,11 +75,19 @@ Three specs apply across all features. Always read them before writing a tech pl
 
 ## Key constraints to carry into every tech plan
 
-- **Auth:** Web uses NextAuth v5 + httpOnly session cookie (BFF pattern). FastAPI verifies JWT from Cognito. See `architecture_decisions.md` ADR-010.
-- **RLS:** All sensitive tables have Postgres Row-Level Security enforced via `SET LOCAL app.member_id`. New endpoints must use the existing RLS dependency in `app/api/deps.py`.
-- **Recipient model:** Every item type (task, note, document, journal entry) must store `recipient_tier` + `recipients[]`. Default is `family` except Health and Journal which default to `self`.
-- **Currency:** GBP (£). **Date format:** DD/MM/YYYY in API/DB; `dd-Mon-yyyy` in UI display.
-- **No third-party UI components:** Tailwind v4 only — no shadcn, Radix, Headless UI, etc. See `CLAUDE.md` styling rules.
+- **Auth:** Web uses NextAuth v5 + httpOnly session cookie (BFF pattern). Rails verifies the Cognito JWT via `app/lib/cognito_jwt_verifier.rb`. See `docs/adrs.md` ADR-010.
+- **Authorisation:** Enforced at the application layer via Pundit policies (`app/policies/`). All queries scoped to `current_member.account_id`. See `docs/adrs.md` ADR-002 and `backend/CLAUDE.md`.
+- **Visibility model:** Every item type must store a `visible_to` field. Default is `family` except Health and Journal which default to `own`. See `terminology.md` for canonical values.
+- **Currency:** GBP (£). **Date format:** DD/MM/YYYY everywhere — API, DB, and UI display.
+- **No third-party UI components:** Tailwind v4 only — no shadcn, Radix, Headless UI, etc. See `frontend/CLAUDE.md` styling rules.
+
+---
+
+## Gherkin in specs → RSpec request specs
+
+Spec §5b (acceptance criteria) and §7 (user flows) are written in Gherkin. These are **not** Cucumber feature files — there are no step definitions and Cucumber is not installed. They are human-readable acceptance criteria.
+
+During `/tech_spec`, Claude Code reads §5b and §7, lists every `Scenario:` name, and includes them as named `it` blocks in the Tests phase of the plan (`spec/requests/api/v1/<feature>_spec.rb`). The Gherkin intent is translated into RSpec — not the steps literally. Unit specs (services, models, policies) are written based on the implementation, not derived from Gherkin.
 
 ---
 
@@ -90,3 +98,4 @@ Three specs apply across all features. Always read them before writing a tech pl
 | 1.0 | Dip | 28/05/2026 11:26 | Added document header (version / updated by / last updated), the "Maintaining this file" rule, and this revision history. |
 | 1.1 | Cowork | 30/05/2026 15:43 | Specs still to be written: removed Overview from Health (now a persistent header panel, not a module spec); removed Preventive Care from Health (merged into Appointments 2026-05-29). |
 | 1.2 | Dip | 01/06/2026 18:02 | Added `platform` area slug; registered `platform--task-engine.md` in spec status index and cross-cutting dependencies; promoted to three required cross-cutting reads. |
+| 1.3 | Cowork | 12/06/2026 18:25 UTC | Updated key constraints: FastAPI → Rails (CognitoJwtVerifier), RLS → Pundit (ADR-002), fixed ADR file reference (architecture_decisions.md → docs/adrs.md), date format, CLAUDE.md reference. Added Gherkin → RSpec section explaining §5b/§7 map to request specs, not Cucumber. |

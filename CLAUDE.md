@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-> **Version:** 1.1
+> **Version:** 1.2
 > **Updated by:** Cowork
-> **Last updated:** 12/06/2026 14:53 UTC
+> **Last updated:** 12/06/2026 18:25 UTC
 
 **Maintaining this file.** Every edit must: (1) bump the version (patch for wording, minor for new rule, major for restructure), (2) update **Last updated** to the current UTC time (`date -u +"%d/%m/%Y %H:%M UTC"`), (3) set **Updated by**, (4) append a row to the revision history. Target ≤200 lines. If an edit pushes past that, move the content to the correct subtree `CLAUDE.md` instead.
 
@@ -92,8 +92,7 @@ A fresh agent should be able to answer "which file do I read for X?" in one hop 
 | Cowork→Code→GitHub workflow | `_workflow/workflow.md` |
 | System architecture, request flow | `docs/architecture.md` |
 | Architecture decisions (ADR log) | `docs/adrs.md` |
-| Colour tokens, component catalogue, design rules | `docs/design-system.md` |
-| UI primitive props + usage examples (read before building UI) | `docs/ui-components.md` |
+| Colour tokens, typography, component catalogue, UX patterns | `docs/design-system.md` |
 | Rules for editing the UI prototype | `_UI/CLAUDE.md` |
 | Prototype file structure and SUBNAV map | `_UI/ui-prototype.md` |
 | Spec naming convention, area slugs, spec index | `_specs/CLAUDE.md` |
@@ -110,3 +109,4 @@ A fresh agent should be able to answer "which file do I read for X?" in one hop 
 |---|---|---|---|
 | 1.0 | Cowork | 12/06/2026 14:53 UTC | Initial version for new MyPal repo (Rails + Next.js). Slim root — global rules and context map only. |
 | 1.1 | Cowork | 12/06/2026 UTC | Added docs/ui-components.md to context map. |
+| 1.2 | Cowork | 12/06/2026 18:25 UTC | Merged docs/ui-components.md into docs/design-system.md (deleted). Updated context map: removed ui-components.md row, updated design-system.md description. |

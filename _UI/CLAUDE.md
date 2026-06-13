@@ -20,7 +20,6 @@
 | `_UI/mypal-app.jsx` | Dip only (manually) | Canonical approved prototype — Claude never edits this directly |
 | `_UI/ui-prototype.md` | Cowork (on close-out only) | Update SUBNAV/NAV and section 9 when structure changes; never update line-number ranges |
 | `_UI/specs/` | Cowork | UI design spec per module |
-| `_UI/design_brief/` | Cowork | Design briefs from conversations |
 
 ---
 

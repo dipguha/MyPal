@@ -64,10 +64,12 @@ Before writing anything, explore the actual project. Use Glob and Grep to find:
 
 The plan must reference **real paths** from this exploration — never invent file names.
 
+**Read §5b and §7 from the spec — these are the acceptance tests.** Before writing any test tasks, list every `Scenario:` name from §5b (per-requirement scenarios) and §7 (end-to-end flows). Each becomes a named `it` block in `spec/requests/api/v1/<feature>_spec.rb`. Include this list in the Tests phase of the plan so the implementer knows exactly which scenarios to cover. Do not translate the Gherkin steps literally into Ruby — translate the *intent* into RSpec `describe`/`context`/`it` blocks with a `# Given/When/Then` comment above each.
+
 **If the feature has a frontend layer**, do the following before writing any frontend tasks:
 
 1. Read the relevant screen(s) in `_UI/mypal-app.jsx`. The prototype is the visual contract — the plan must describe implementing what is shown there. Note the component hierarchy, copy, and interaction patterns; reference them explicitly in the Phase tasks.
-2. Read `docs/ui-components.md` — the canonical reference for every shared primitive (`Button`, `BtnSm`, `Input`, `Modal`, `Tabs`, `ListRow`, `Card`, `Chip`, `Collapsible`, `FormError`, `RadioCard`).
+2. Read `docs/design-system.md` — the canonical reference for every shared primitive (`Button`, `BtnSm`, `Input`, `Modal`, `Tabs`, `ListRow`, `Card`, `Chip`, `Collapsible`, `FormError`, `RadioCard`) plus colour tokens, UX patterns (WrapRow, ForVisPair, RowModalSync, etc.), and badge semantics.
 3. Read each file in `frontend/src/components/ui/` — the source is authoritative; use the actual prop names and variant strings in the plan.
 
 The plan's Phase tasks must reference existing primitives wherever they apply. Never plan to hand-roll a button, modal, or input — that's what causes style drift.
@@ -85,7 +87,7 @@ Typical layers: Infrastructure · Database · Backend API · Frontend · Tests �
 
 If the feature touches the database — even adding a single column — pause and check what the new design **replaces**. Pre-launch features have no migration cost, so superseded objects should be removed in the same migration rather than left dangling.
 
-Run targeted searches over `mypal-schema.sql`, `backend/alembic/versions/`, and `backend/app/models/` for every concept the new design supplants. Specifically look for:
+Run targeted searches over `db/mypal-schema.sql`, `db/migrate/`, and `backend/app/models/` for every concept the new design supplants. Specifically look for:
 
 - **Columns that store the same fact under an older name** (e.g. `visibility` → `recipient_tier`, `is_admin` → `role_id`)
 - **Tables that the new model makes redundant** (e.g. `role_permissions` once permissions are derived from role + override tables)

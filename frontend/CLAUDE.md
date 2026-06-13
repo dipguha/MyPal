@@ -1,8 +1,8 @@
 # frontend/CLAUDE.md
 
-> **Version:** 1.1
-> **Updated by:** Cowork
-> **Last updated:** 12/06/2026 14:53 UTC
+> **Version:** 1.3
+> **Updated by:** Claude Code
+> **Last updated:** 12/06/2026 19:30 UTC
 
 Frontend-only conventions. For global rules (branch naming, locale, auth model overview) see the root `CLAUDE.md`. For the UI component catalogue and design tokens see `docs/design-system.md`.
 
@@ -10,7 +10,7 @@ Frontend-only conventions. For global rules (branch naming, locale, auth model o
 
 ## Before building any screen or component — mandatory pre-flight
 
-1. **Read `docs/ui-components.md`** — props, usage examples, and anti-patterns for every shared primitive.
+1. **Read `docs/design-system.md`** — props, usage examples, and anti-patterns for every shared primitive; also covers colour tokens, UX patterns (WrapRow, ForVisPair, RowModalSync, etc.), and badge semantics.
 2. **Read every file in `src/components/ui/`** — the actual implementations are the ground truth; the reference doc summarises them but the source is authoritative.
 3. Use what exists. Never hand-roll a button, input, modal, select, or tab component. If the design calls for a pattern not covered by existing primitives, propose adding a new `src/components/ui/` component rather than writing one-off styles in the feature file.
 
@@ -179,6 +179,66 @@ For component visual specs (GroupHeader, WrapRow, ForVisPair, RowModalSync, etc.
 
 ---
 
+## Responsive design (hard rules — no exceptions without a written decision)
+
+MyPal targets mobile, tablet, and desktop. Every screen must work at all three sizes. Build mobile-first — the unsuffixed Tailwind class is the mobile style; add `md:` and `lg:` overrides for larger screens.
+
+### Breakpoints
+
+| Prefix | Min width | Target device |
+|---|---|---|
+| *(none)* | 0px | Mobile — design here first |
+| `sm:` | 640px | Large mobile / small tablet |
+| `md:` | 768px | Tablet |
+| `lg:` | 1024px | Laptop / desktop |
+| `xl:` | 1280px | Wide desktop |
+
+### Shell — navigation pattern
+
+- **Mobile (`< md`):** Sidebar is hidden. A fixed bottom tab bar (`components/shell/BottomNav.tsx`) shows the top-level nav icons. The topbar shows the area title and a hamburger for secondary actions.
+- **Desktop (`md+`):** Sidebar is visible. Bottom tab bar is hidden.
+- Never show both simultaneously. Use `hidden md:flex` / `flex md:hidden` to toggle.
+
+### Layout rules
+
+| Pattern | Mobile | Desktop |
+|---|---|---|
+| Page padding | `px-4 py-4` | `px-6 py-6` |
+| Content max-width | full width | `max-w-3xl` or `max-w-5xl` depending on density |
+| Card grids | `grid-cols-1` | `md:grid-cols-2 lg:grid-cols-3` |
+| Stat/summary rows | `grid-cols-2` | `md:grid-cols-4` |
+| Form column pairs (ForVisPair etc.) | `grid-cols-1` | `sm:grid-cols-2` |
+| Modal width | `w-[94vw]` (already in `Modal` default) | `w-[min(460px,94vw)]` |
+| Tables | `overflow-x-auto` wrapper; consider card reflow below `sm` | standard table |
+
+### Typography scaling
+
+Scale heading sizes across breakpoints. Never use a fixed size for a page title or area heading.
+
+```tsx
+<h1 className="text-xl font-display md:text-2xl lg:text-3xl">Area title</h1>
+<h2 className="text-base font-semibold md:text-lg">Section heading</h2>
+```
+
+Body text (`text-[13px]`, `text-[15px]`) does **not** need to scale — it is already legible at all sizes.
+
+### Touch targets
+
+Interactive elements (buttons, list rows, chips) must be at least `44px` tall on mobile. Use `min-h-[44px]` when the natural height falls short. `ListRow` already meets this — do not shrink it.
+
+### Overflow and truncation
+
+- Titles in list rows always `truncate` — never let them wrap and break the row height.
+- Right-side metadata clusters use `whitespace-nowrap` and the WrapRow pattern (see `docs/design-system.md`) so they wrap below the title rather than crushing it.
+
+### What NOT to do
+
+- Do not design desktop-only and add `md:hidden` as an afterthought — the mobile layout must be the primary design pass.
+- Do not use fixed pixel widths (`w-[320px]`) for containers — use `w-full` with a `max-w-*` cap instead.
+- Do not rely on hover states for primary actions — hover does not exist on touch.
+
+---
+
 ## Commands
 
 ```bash
@@ -198,3 +258,5 @@ npm run lint         # eslint
 |---|---|---|---|
 | 1.0 | Cowork | 12/06/2026 14:53 UTC | Initial version. Grounded in actual codebase. Flags FASTAPI_INTERNAL_URL rename. |
 | 1.1 | Cowork | 12/06/2026 UTC | Added mandatory pre-flight: read docs/ui-components.md + src/components/ui/ before building any screen. |
+| 1.2 | Cowork | 12/06/2026 18:25 UTC | Updated pre-flight to point to docs/design-system.md (ui-components.md merged in). |
+| 1.3 | Claude Code | 12/06/2026 19:30 UTC | Added Responsive design section: mobile-first rule, breakpoint table, shell nav pattern (Sidebar/BottomNav), layout rules, typography scaling, touch targets, overflow/truncation, anti-patterns. |

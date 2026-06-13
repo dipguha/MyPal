@@ -87,7 +87,7 @@ Priority key: **P0** = must have at launch · **P1** = should have · **P2** = n
 
 **5b. Acceptance criteria — Gherkin scenarios.**
 
-> **Writing scenarios.** Each requirement's acceptance criteria are expressed as one or more `Scenario` (or `Scenario Outline`) blocks. These are the canonical, testable definition of "done" — `/tech_spec` turns each into a test-plan item, and `/tech_implement` treats a phase as verified only when its scenarios pass (pytest for backend behaviour, Playwright for UI).
+> **Writing scenarios.** Each requirement's acceptance criteria are expressed as one or more `Scenario` (or `Scenario Outline`) blocks. These are the canonical, testable definition of "done" — `/tech_spec` turns each into a test-plan item, and `/tech_implement` treats a phase as verified only when its scenarios pass (rspec for backend behaviour, Playwright for UI).
 >
 > Conventions:
 > - One `Feature:` block per requirement (or per closely-related group); tag it with the requirement id, e.g. `# F-01`.
@@ -229,3 +229,4 @@ List the key fields captured or stored. Implementation detail (column types, ind
 | 0.3 | 2026-05-22 20:03| Dip | Updated UI reference from mypal-complete-v2.jsx to _UI/mypal-app.jsx (canonical prototype moved to _UI/ folder) |
 | 0.4 | 2026-05-24 17:15 | Dip | Confirmed YYYY-MM-DD HH24:MI format for both Last updated and revision history date fields |
 | 0.5 | 2026-06-04 | Dip | Template → v3: acceptance criteria (§5) and user flows (§7) now written in Gherkin. Added §5a requirements index + §5b Gherkin scenarios with a "Writing scenarios" convention (Scenario Outline for role/visible_to matrices, mandatory server-side rejection scenario). |
+| 0.6 | 2026-06-12 | Cowork | Fixed §5b note: backend acceptance tests use `rspec` (not `pytest` — project migrated to Rails). |

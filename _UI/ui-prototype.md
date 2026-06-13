@@ -37,7 +37,6 @@ Design decisions (Cowork)
 | `_UI/ui_working/mypal-app-working.jsx` | Active working copy — all changes go here | Cowork |
 | `_UI/mypal-app.jsx` | Canonical approved prototype | Cowork, only after Dip approves |
 | `_UI/specs/[area]--[module].md` | UI design specs (input to prototype changes) | Cowork |
-| `_UI/design_brief/[area]--[module]-brief.md` | Design briefs from Cowork conversations | Cowork |
 | `_UI/ui-prototype.md` | This file — prototype guide | Cowork |
 | `_UI/ui-design-spec-template.md` | Spec template | Cowork |
 | `_UI/CLAUDE.md` | Directory context for all Claude sessions | Cowork |
