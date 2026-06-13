@@ -27,3 +27,11 @@ Metrics/AbcSize:
 Naming/PredicatePrefix:
   AllowedMethods:
     - is_hmg?
+
+# Command services (confirm/resend) legitimately return true on success.
+Naming/PredicateMethod:
+  Enabled: false
+
+# Keyword-argument constructors read clearly even past 5 args.
+Metrics/ParameterLists:
+  CountKeywordArgs: false

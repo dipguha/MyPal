@@ -10,6 +10,10 @@ gem 'jwt'
 gem 'pundit'
 gem 'rack-cors'
 
+# AWS Cognito admin operations (AdminDeleteUser rollback cleanup). The
+# unauthenticated SignUp/Confirm/Resend calls use plain REST (no creds needed).
+gem 'aws-sdk-cognitoidentityprovider'
+
 # Boot caching; required in config/boot.rb
 gem 'bootsnap', require: false
 
