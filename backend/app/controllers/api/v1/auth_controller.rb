@@ -22,7 +22,7 @@ module Api
             last_name: p[:last_name],
             account_type: p[:account_type],
             phone: p[:phone].presence,
-            marketing_opt_in: ActiveModel::Type::Boolean.new.cast(p[:marketing_opt_in])
+            marketing_opt_in: ActiveModel::Type::Boolean.new.cast(p[:marketing_opt_in]) || false
           )
         rescue StandardError => e
           # DB write failed after the Cognito user was created — remove the
