@@ -4,9 +4,9 @@
 |---|---|
 | **File** | `docs/adrs.md` |
 | **Purpose** | Authoritative log of product and infrastructure decisions. When you wonder "why is it done this way?", this is the first place to look. |
-| **Version** | 1.2 |
+| **Version** | 1.3 |
 | **Updated by** | Claude Code |
-| **Last updated** | 14/06/2026 16:18 UTC |
+| **Last updated** | 14/06/2026 16:52 UTC |
 
 **Maintaining this file.** Every edit must: (1) bump the version, (2) update **Last updated**, (3) set **Updated by**, (4) append a revision history row. To add a new ADR: copy the template at the bottom, assign the next number, fill it in, and add it to the index.
 
@@ -334,6 +334,7 @@ Terraform is split into a persistent **base** (VPC, subnets, ACM cert, ECR, Secr
 - `RAILS_INTERNAL_URL` changes from `localhost` to the Service Connect name; backend in a private subnet reaches Cognito (no PrivateLink) and ECR/Secrets via the NAT.
 - More moving parts than A/B → more to learn, and more that can snag on `destroy`; single-AZ NAT/RDS are **not HA** (acceptable for test).
 - Reusing one Cognito pool across environments is a temporary convenience; a separate `mypal-prod-users` pool is required before production.
+- **Pre-production hardening required** (acceptable to defer for the ephemeral dev test): (a) **encrypt the internal frontend→backend hop** — it is plaintext HTTP carrying the Bearer JWT (private-subnet + SG-restricted, but should use **Service Connect TLS** in prod given health/finance data); (b) **restrict task egress and add VPC endpoints** for ECR/Secrets/CloudWatch/S3 as defence-in-depth (backend→Cognito is already HTTPS end-to-end; Cognito still requires the NAT). Tracked in `infrastructure/deployment-architecture.md` §9.
 - Detailed design, resource inventory, env/secret matrix, cost, and the runbook live in `infrastructure/deployment-architecture.md`.
 
 ---
@@ -371,3 +372,4 @@ What does this decision enable? What does it constrain? What must other develope
 | 1.0 | Cowork | 12/06/2026 18:25 UTC | Initial ADR log. Eight ADRs: multi-tenant model (001), Pundit vs RLS (002), BFF auth (010), FreqLeadPair lead time (011), Tasks one-off only (012), Key Dates aggregation (013), Task sub-types (014), Rails backend (015). |
 | 1.1 | Cowork | 12/06/2026 20:35 UTC | Added ADR-003: two plan tiers only ('solo'/'family'), account_types table removed, social_logins dropped. Documents decisions made ahead of baseline migration. |
 | 1.2 | Claude Code | 14/06/2026 16:18 UTC | Added ADR-016: AWS deployment topology (ECS Fargate Option C — ALB-public / app+data private + NAT, Service Connect, RDS, reuse dev Cognito, dev/uat/prod subdomains, ephemeral base/stack split). Detail in infrastructure/deployment-architecture.md. |
+| 1.3 | Claude Code | 14/06/2026 16:52 UTC | ADR-016 consequences: added pre-prod hardening — internal FE→BE TLS (Service Connect TLS) and egress restriction + VPC endpoints. |

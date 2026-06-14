@@ -5,8 +5,8 @@
 | **File** | `infrastructure/deployment-architecture.md` |
 | **Purpose** | The concrete AWS deployment design the Terraform implements — topology, networking, resources, env/secrets, cost, and the spin-up/teardown runbook. The *decisions* behind it live in `docs/adrs.md` (ADR-016); this file is the buildable detail. |
 | **Status** | Draft — agreed, pre-implementation (no Terraform written yet) |
-| **Version** | 0.2 |
-| **Last updated** | 14/06/2026 16:33 UTC |
+| **Version** | 0.3 |
+| **Last updated** | 14/06/2026 16:52 UTC |
 | **Region** | `eu-west-1` |
 | **AWS account** | `382888552064` |
 
@@ -222,8 +222,14 @@ Images are rebuilt/pushed to ECR (base) only when code changes, not every sessio
 
 ## 9. Open items / decisions still to make
 
+### Security hardening (before production — not needed for the ephemeral dev test)
+
+- [ ] **Encrypt the internal frontend→backend hop (Service Connect TLS).** Today FE→BE is **HTTP** (`http://backend:3001`), carrying the Cognito access token as a plaintext `Bearer` header. It stays within private subnets and is SG-restricted (only `frontend-sg` → `backend-sg`:3001), so it's not internet-exposed — but given MyPal handles health/finance data, encrypt it in transit for production. Cleanest option: **ECS Service Connect TLS** (certs via AWS Private CA / ACM, transparent mTLS, no app code change). Alternatives: Puma TLS + `https://` internal URL, or an internal HTTPS ALB. Keep short token TTL (~1h) regardless. *(Local dev / ephemeral test: HTTP is acceptable.)*
+- [ ] **Restrict egress + VPC endpoints for AWS services.** Backend→Cognito already goes over **HTTPS end-to-end** (NAT/IGW only forward ciphertext; cert validation prevents MITM) — so that path is not a plaintext risk. For defence-in-depth: (a) tighten the task **egress** so it can only reach required hosts (limits exfiltration), and (b) add **VPC interface/gateway endpoints** for ECR / Secrets Manager / CloudWatch / S3 to keep that traffic on AWS's private network (also cuts NAT data cost). **Cognito itself still needs the NAT** (no clean PrivateLink for the user-pool API). Optimisation + hardening; not needed for first deploy.
+
+### Other open items
+
 - [ ] **DB persistence:** RDS is destroyed each session (data lost — acceptable for testing). If you later want data to persist between sessions, move RDS into `base` and `stop` it instead (note: stopped RDS still bills storage and auto-starts after 7 days).
-- [ ] **NAT vs VPC endpoints:** a single NAT is simplest. To cut NAT data cost, add VPC interface endpoints for ECR/Secrets/CloudWatch/S3 (Cognito still needs NAT — no clean PrivateLink). Learning exercise; not needed for first deploy.
 - [ ] **Migrations:** run via a one-off `ecs run-task` vs the Rails container entrypoint (`db:prepare`). Entrypoint is simplest for a single task.
 - [ ] **Frontend production Docker image** must be verified (`npm run build` + `next start`, ideally `output: 'standalone'`).
 - [ ] **CI/CD** (GitHub OIDC → ECR/ECS) — out of scope for the first manual deploy.
