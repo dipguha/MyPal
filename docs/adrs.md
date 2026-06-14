@@ -4,9 +4,9 @@
 |---|---|
 | **File** | `docs/adrs.md` |
 | **Purpose** | Authoritative log of product and infrastructure decisions. When you wonder "why is it done this way?", this is the first place to look. |
-| **Version** | 1.1 |
-| **Updated by** | Cowork |
-| **Last updated** | 12/06/2026 20:35 UTC |
+| **Version** | 1.2 |
+| **Updated by** | Claude Code |
+| **Last updated** | 14/06/2026 16:18 UTC |
 
 **Maintaining this file.** Every edit must: (1) bump the version, (2) update **Last updated**, (3) set **Updated by**, (4) append a revision history row. To add a new ADR: copy the template at the bottom, assign the next number, fill it in, and add it to the index.
 
@@ -25,6 +25,7 @@
 | [ADR-013](#adr-013) | Key Dates aggregates all recurring events; owns "Others" | Accepted | 2026-06-02 |
 | [ADR-014](#adr-014) | Tasks has two sub-types: Simple and Appointment | Accepted | 2026-06-02 |
 | [ADR-015](#adr-015) | Rails API-only backend (replacing FastAPI/Python) | Accepted | 2026-06-12 |
+| [ADR-016](#adr-016) | AWS deployment topology — ECS Fargate, ALB-public/private tiers, ephemeral envs | Accepted | 2026-06-14 |
 
 ---
 
@@ -305,6 +306,38 @@ FastAPI, SQLAlchemy, Alembic, and Pydantic are not used in this project.
 
 ---
 
+## ADR-016
+
+**Title:** AWS deployment topology — ECS Fargate, ALB-public/private tiers, ephemeral environments
+
+**Status:** Accepted
+
+**Date:** 2026-06-14
+
+### Context
+
+We need to run MyPal on AWS to test it end-to-end before launch. Constraints and goals: minimal cost, but a **production-shaped** layout (for fidelity and as a learning exercise). Expected usage is bursty — ~2 hours, ~8 times/month — with the environment torn down between sessions. The domain `mydigitalpals.com` is a Route 53 hosted zone in the target account (`382888552064`, eu-west-1); a `mypal-dev-users` Cognito pool already exists there.
+
+Options considered: (A) one Fargate task with both containers in public subnets, no NAT — cheapest/simplest; (B) two services in public subnets with Service Connect + SG isolation, no NAT; (C) two services with the ALB public and the app + data tiers in **private** subnets behind a NAT Gateway — the real production pattern. Because the environment is destroyed after each session, per-hour resources (incl. NAT) bill only for the ~16 hours/month used, so cost is no longer the deciding factor (~$3–4/month for any option).
+
+### Decision
+
+Adopt **Option C**. One VPC; ALB (HTTPS) and a single NAT Gateway in public subnets; **frontend and backend ECS Fargate services and RDS in private subnets**; isolation enforced by security groups (alb→frontend→backend→rds). Frontend↔backend over **ECS Service Connect** (`RAILS_INTERNAL_URL=http://backend:3001`). **RDS PostgreSQL** `db.t4g.micro` single-AZ. **Reuse** the existing `mypal-dev-users` Cognito pool for now.
+
+Environments use subdomains of `mydigitalpals.com`: **`dev.`** (build first), `uat.` (later), apex for production. A single **wildcard ACM cert** `*.mydigitalpals.com` covers all.
+
+Terraform is split into a persistent **base** (VPC, subnets, ACM cert, ECR, Secrets Manager) and an **ephemeral** stack (NAT, ALB, ECS, RDS) that is `apply`/`destroy`-ed per session, so spin-up/teardown is fast and only hourly-billed resources churn.
+
+### Consequences
+
+- A production-faithful topology (public/private tiers, NAT, service-to-service discovery) at ~$3–4/month under the ephemeral usage model.
+- `RAILS_INTERNAL_URL` changes from `localhost` to the Service Connect name; backend in a private subnet reaches Cognito (no PrivateLink) and ECR/Secrets via the NAT.
+- More moving parts than A/B → more to learn, and more that can snag on `destroy`; single-AZ NAT/RDS are **not HA** (acceptable for test).
+- Reusing one Cognito pool across environments is a temporary convenience; a separate `mypal-prod-users` pool is required before production.
+- Detailed design, resource inventory, env/secret matrix, cost, and the runbook live in `infrastructure/deployment-architecture.md`.
+
+---
+
 ## ADR template
 
 ```markdown
@@ -337,3 +370,4 @@ What does this decision enable? What does it constrain? What must other develope
 |---|---|---|---|
 | 1.0 | Cowork | 12/06/2026 18:25 UTC | Initial ADR log. Eight ADRs: multi-tenant model (001), Pundit vs RLS (002), BFF auth (010), FreqLeadPair lead time (011), Tasks one-off only (012), Key Dates aggregation (013), Task sub-types (014), Rails backend (015). |
 | 1.1 | Cowork | 12/06/2026 20:35 UTC | Added ADR-003: two plan tiers only ('solo'/'family'), account_types table removed, social_logins dropped. Documents decisions made ahead of baseline migration. |
+| 1.2 | Claude Code | 14/06/2026 16:18 UTC | Added ADR-016: AWS deployment topology (ECS Fargate Option C — ALB-public / app+data private + NAT, Service Connect, RDS, reuse dev Cognito, dev/uat/prod subdomains, ephemeral base/stack split). Detail in infrastructure/deployment-architecture.md. |

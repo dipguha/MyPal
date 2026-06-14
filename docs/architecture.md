@@ -4,9 +4,9 @@
 |---|---|
 | **File** | `docs/architecture.md` |
 | **Purpose** | The single orientation map for how MyPal is built end to end — components, the request flow, auth, data, and deployment. When you ask "how does a request actually get from the browser to the database?", this is the first place to look. For *why* a decision was made, follow the link to the relevant ADR in `docs/adrs.md`. |
-| **Version** | 1.1 |
+| **Version** | 1.2 |
 | **Updated by** | Claude Code |
-| **Last updated** | 13/06/2026 18:49 UTC |
+| **Last updated** | 14/06/2026 16:18 UTC |
 
 **Maintaining this file.** Every edit must: (1) bump the **Version** (patch for wording, minor for a new section or diagram, major for a structural rewrite), (2) update **Last updated** to the current UTC time (`date -u +"%d/%m/%Y %H:%M UTC"` — never guess), (3) set **Updated by**, (4) append a row to the Revision history table at the bottom. The header and the latest revision-history row must always agree. This document **describes the target design** and marks anything not yet built with _(not yet built)_ so the gap is explicit rather than silent. It never contradicts an ADR — if the design changes, change the ADR first (via `/tech_architecture`), then reflect it here.
 
@@ -123,6 +123,8 @@ For the full table inventory, consult `db/mypal-schema.sql`; this document captu
 
 ## 6. Deployment topology 🟡
 
+> **Agreed deployment design (ADR-016):** ECS Fargate with the ALB public and the app + data tiers in **private** subnets behind a NAT (Option C); per-session ephemeral environments on `*.mydigitalpals.com` (`dev` first). Full detail — VPC/subnet layout, resource inventory, env/secret matrix, cost, and the spin-up/teardown runbook — is in **`infrastructure/deployment-architecture.md`**.
+
 Target topology, expressed as Terraform modules under `infrastructure/modules/`, composed per environment in `infrastructure/environments/{dev,prod}`:
 
 ```mermaid
@@ -177,3 +179,4 @@ Design-only. The intended pipeline is GitHub Actions authenticating to AWS via *
 |---|---|---|---|
 | 1.0 | Claude Code | 13/06/2026 15:45 UTC | Initial architecture document. Covers system context, component overview, the signed-in request flow, auth & authorisation, data model & multi-tenancy, deployment topology, and CI/CD. Grounded in the current codebase: notes the FastAPI→Rails proxy drift, the Rails backend as design-only, infra as scaffolded, no CI yet, and the stale `mypal-schema.sql` vs ADR-003. |
 | 1.1 | Claude Code | 13/06/2026 18:49 UTC | Sign-up implementation: Rails backend now scaffolded with the auth + identity slice built (CognitoService, AccountBootstrapService, `/api/v1/auth/*`, RSpec); BFF proxy drift resolved (RAILS_INTERNAL_URL); added `groups`/`group_members` + canonical role set to the data model; documented the docker-compose local dev setup; noted CognitoJwtVerifier in `app/services/`. |
+| 1.2 | Claude Code | 14/06/2026 16:18 UTC | §6: added pointer to the agreed AWS deployment design (ADR-016 + `infrastructure/deployment-architecture.md`). |
