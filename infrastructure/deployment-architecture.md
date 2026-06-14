@@ -5,8 +5,8 @@
 | **File** | `infrastructure/deployment-architecture.md` |
 | **Purpose** | The concrete AWS deployment design the Terraform implements — topology, networking, resources, env/secrets, cost, and the spin-up/teardown runbook. The *decisions* behind it live in `docs/adrs.md` (ADR-016); this file is the buildable detail. |
 | **Status** | Draft — agreed, pre-implementation (no Terraform written yet) |
-| **Version** | 0.1 |
-| **Last updated** | 14/06/2026 16:18 UTC |
+| **Version** | 0.2 |
+| **Last updated** | 14/06/2026 16:33 UTC |
 | **Region** | `eu-west-1` |
 | **AWS account** | `382888552064` |
 
@@ -51,6 +51,35 @@ flowchart TB
   FE -.egress via NAT.-> Cognito[(Cognito mypal-dev-users)]
   BE -.egress via NAT.-> Cognito
   NAT --> IGW
+```
+
+```text
+                              Internet user
+                                    │  HTTPS 443  →  dev.mydigitalpals.com
+                                    ▼
+ ╔════════════════════════ VPC  10.0.0.0/16  (eu-west-1) ════════════════════════╗
+ ║                                                                               ║
+ ║   PUBLIC subnets (2 AZs)                                                       ║
+ ║   ┌───────────────┐         ┌──────────────┐        ┌──────────────────┐      ║
+ ║   │      ALB      │         │ NAT Gateway  │───────▶│ Internet Gateway │──────╫──▶ Cognito
+ ║   │  HTTPS + ACM  │         │ (single-AZ)  │        └──────────────────┘      ║    (mypal-dev-users)
+ ║   └───────┬───────┘         └──────▲───────┘                                  ║    + ECR / Secrets
+ ║           │ :3000                  │ outbound egress from private subnets      ║
+ ║           │ (target group)        │                                           ║
+ ║   PRIVATE subnets (2 AZs)         │                                           ║
+ ║   ┌───────▼────────┐   Service   ┌┴───────────────┐        ┌──────────────┐   ║
+ ║   │    frontend    │   Connect   │    backend     │  :5432 │     RDS      │   ║
+ ║   │  Next.js + BFF │────────────▶│   Rails API    │───────▶│  PostgreSQL  │   ║
+ ║   │     :3000      │ backend:3001│     :3001      │        │ db.t4g.micro │   ║
+ ║   └────────────────┘  + Bearer   └────────────────┘        └──────────────┘   ║
+ ║                          JWT                                                   ║
+ ╚═══════════════════════════════════════════════════════════════════════════════╝
+
+  Security groups (the real isolation — not the subnet type):
+     alb-sg       ← 0.0.0.0/0   : 443
+     frontend-sg  ← alb-sg      : 3000
+     backend-sg   ← frontend-sg : 3001
+     rds-sg       ← backend-sg  : 5432
 ```
 
 **Two ECS services** (separate task definitions) connected by **ECS Service Connect**:

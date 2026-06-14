@@ -10,6 +10,8 @@
 
 **Maintaining this file.** Every edit must: (1) bump the **Version** (patch for wording, minor for a new section or diagram, major for a structural rewrite), (2) update **Last updated** to the current UTC time (`date -u +"%d/%m/%Y %H:%M UTC"` — never guess), (3) set **Updated by**, (4) append a row to the Revision history table at the bottom. The header and the latest revision-history row must always agree. This document **describes the target design** and marks anything not yet built with _(not yet built)_ so the gap is explicit rather than silent. It never contradicts an ADR — if the design changes, change the ADR first (via `/tech_architecture`), then reflect it here.
 
+> **Diagram convention.** Every diagram appears **twice**: a Mermaid fenced block (renders on GitHub) immediately followed by an equivalent ASCII diagram in a plain fenced code block (renders in any editor without an extension). Keep the two in sync on every edit.
+
 ---
 
 ## 1. System context
@@ -24,6 +26,21 @@ flowchart LR
   Rails --> DB[(PostgreSQL)]
   BFF -.OAuth.-> Cognito[(AWS Cognito)]
   Rails -.JWKS.-> Cognito
+```
+
+```text
+ Family member
+      │
+      ▼
+ ┌─────────────┐  /api/*   ┌──────────────────┐  Bearer JWT  ┌──────────────┐     ┌────────────┐
+ │   Browser   │ ────────▶ │  Next.js server  │ ───────────▶ │  Rails API   │ ──▶ │ PostgreSQL │
+ │ (App Router)│           │  BFF + NextAuth  │              │  (API-only)  │     └────────────┘
+ └─────────────┘           └────────┬─────────┘              └──────┬───────┘
+                                    │ OAuth                         │ JWKS
+                                    ▼                               ▼
+                            ┌───────────────────────────────────────────┐
+                            │                AWS Cognito                 │
+                            └───────────────────────────────────────────┘
 ```
 
 ---
@@ -70,6 +87,19 @@ sequenceDiagram
   D-->>B: serialized JSON (Blueprinter)
 ```
 
+```text
+ Browser          Next.js BFF            Rails API         Cognito JWKS    PostgreSQL
+   │ fetch /api/v1/... │                      │                 │             │
+   │────────────────▶  │ read token from      │                 │             │
+   │                   │  session cookie       │                 │             │
+   │                   │ forward + Bearer ───▶ │ verify JWT ───▶ │             │
+   │                   │                       │ sub → member    │             │
+   │                   │                       │ Pundit + scope  │             │
+   │                   │                       │ scoped query ─────────────────▶│
+   │◀──────────────── serialized JSON (Blueprinter) ◀───────────────────────────│
+ [ Replace with the ASCII equivalent of the Mermaid above — keep the two in sync ]
+```
+
 [Below the diagram, narrate each hop in prose: where the token lives, why the browser never sees it, how `current_member` is resolved, where authorisation is enforced. Cross-link ADR-010 and ADR-002.]
 
 ---
@@ -97,6 +127,19 @@ flowchart TB
   API --> RDS[(RDS Postgres)]
   API --> S3[(S3)]
   FE -.-> Cognito[(Cognito)]
+```
+
+```text
+                    Application Load Balancer
+                       │            │
+                       ▼            ▼
+                ┌────────────┐ ┌────────────┐     ┌──────────────┐
+                │ ECS: Next  │ │ ECS: Rails │ ──▶ │ RDS Postgres │
+                └─────┬──────┘ └─────┬──────┘ ──▶ │ S3           │
+                      ┊              ┊            └──────────────┘
+                      ▼              ▼
+                       Cognito (user pool)
+ [ Replace with the ASCII equivalent of the Mermaid above — keep the two in sync ]
 ```
 
 ---
