@@ -5,8 +5,8 @@
 | **File** | `infrastructure/deployment-architecture.md` |
 | **Purpose** | The concrete AWS deployment design the Terraform implements — topology, networking, resources, env/secrets, cost, and the spin-up/teardown runbook. The *decisions* behind it live in `docs/adrs.md` (ADR-016); this file is the buildable detail. |
 | **Status** | Draft — agreed, pre-implementation (no Terraform written yet) |
-| **Version** | 0.3 |
-| **Last updated** | 14/06/2026 16:52 UTC |
+| **Version** | 0.4 |
+| **Last updated** | 15/06/2026 06:06 UTC |
 | **Region** | `eu-west-1` |
 | **AWS account** | `382888552064` |
 
@@ -243,3 +243,59 @@ Images are rebuilt/pushed to ECR (base) only when code changes, not every sessio
 - App/system architecture: `docs/architecture.md` (§6 Deployment topology)
 - Terraform conventions: `infrastructure/CLAUDE.md`
 - Prod env-var changes rationale: this file §5
+
+---
+
+## 11. Terraform implementation plan
+
+Conventions are in `infrastructure/CLAUDE.md`; this is the concrete module/stack breakdown to build.
+
+### 11.1 Two stacks (separate state)
+
+| Stack | Dir | State key | Lifecycle | Contents |
+|---|---|---|---|---|
+| **Base** (persistent) | `environments/dev-base/` | `dev-base/terraform.tfstate` | apply once, leave up | network skeleton, ACM cert, ECR, Secrets |
+| **Ephemeral** (per session) | `environments/dev/` | `dev/terraform.tfstate` | `apply`/`destroy` each session | NAT, SGs, RDS, ALB, ECS, DNS record |
+
+Shared state bucket `mypal-tfstate-dev`, two keys. The ephemeral stack reads the base via `data "terraform_remote_state" "base"` — the only cross-stack coupling. The base's private route table is created **without** a NAT route; the ephemeral stack adds the `0.0.0.0/0 → NAT` route so teardown removes egress cleanly.
+
+### 11.2 Module inventory
+
+| Module | Stack | Purpose | Key inputs | Key outputs |
+|---|---|---|---|---|
+| `network` | base | VPC, 2 public + 2 private subnets, IGW, public RT (+route, assoc), private RT (+assoc, no NAT route) | `vpc_cidr`, `az_count` | `vpc_id`, `public_subnet_ids`, `private_subnet_ids`, `private_route_table_ids` |
+| `ecr` | base | Repos `mypal-frontend`, `mypal-backend` (+lifecycle) | — | repo URLs |
+| `acm` *(new)* | base | Wildcard cert `*.mydigitalpals.com` (+apex), DNS-validated in the existing zone | `domain`, `zone_id` | `certificate_arn` |
+| `secrets` | base | Secrets Manager: `AUTH_SECRET`, `SECRET_KEY_BASE`, generated `rds_master_password` | — | secret ARNs, password (sensitive) |
+| `nat` *(new, small)* | ephemeral | EIP + NAT GW (one public subnet) + default route into base's private RT | `public_subnet_id`, `private_route_table_ids` | `nat_gateway_id` |
+| `database` | ephemeral | DB subnet group (private) + RDS `db.t4g.micro`, single-AZ, not public, TLS | `vpc_id`, `private_subnet_ids`, `db_sg_id`, `master_password` | `db_endpoint`, `db_name` |
+| `alb` | ephemeral | ALB (public) + HTTPS:443 listener (base cert) + TG→frontend:3000 + HTTP:80→443 redirect | `vpc_id`, `public_subnet_ids`, `alb_sg_id`, `certificate_arn` | `alb_dns_name`, `alb_zone_id`, `target_group_arn` |
+| `ecs` | ephemeral | Cluster, Service Connect namespace `mypal.local`, 2 task defs + services (frontend/backend), TG attach, task/exec roles | subnets, SG ids, `target_group_arn`, image URLs, env + secret ARNs | cluster + service names |
+| `observability` | ephemeral | CloudWatch log groups per container | retention | log group names |
+| `cognito` | — | **Reuse** `mypal-dev-users` — referenced via vars/`data`, not created | pool id, client secret ARN | — |
+| `s3`, `ci` | — | **Skipped for now** (no S3 need for sign-up; CI later) | — | — |
+
+Security groups (`alb-sg → frontend-sg → backend-sg → rds-sg`), the Route 53 ALIAS record, and ACM validation records are defined **inline in the env roots** (they reference each other / the existing zone), per the authoring rules.
+
+### 11.3 Stack composition
+
+- **`dev-base/main.tf`:** `network` → `ecr` → `acm` (zone `data`) → `secrets`; outputs feed the ephemeral stack.
+- **`dev/main.tf`:** `remote_state(base)` → SGs (inline) → `nat` → `database` → `alb` → `ecs` → Route 53 alias (inline). ECS injects the env/secret matrix from §5 (`RAILS_INTERNAL_URL=http://backend:3001`, `DATABASE_URL` built from base password + RDS endpoint, Cognito vars, etc.). Migrations via the backend container entrypoint `db:prepare` (or a one-off `ecs run-task` — see §9).
+
+### 11.4 Build & apply order (verify-as-you-go)
+
+`terraform fmt`/`validate`/`plan` at each step (no cost); `apply` only on explicit go-ahead (bills account `382888552064`).
+
+1. Bootstrap state backend (`mypal-tfstate-dev` bucket + `mypal-tfstate-lock` table); fix `Project` tag → `MyPal`.
+2. `dev-base`: `network` → validate/plan.
+3. `dev-base`: `ecr`, `secrets`, `acm` → apply (cert DNS-validates once).
+4. Build & push images to ECR.
+5. `dev`: SGs + `nat` → `database` → `alb` → `ecs` → DNS → validate/plan.
+6. Apply `dev`, run migrations, smoke-test `https://dev.mydigitalpals.com`, then `destroy`.
+
+### 11.5 Decisions to confirm before writing HCL
+
+- [ ] State bootstrap OK (`mypal-tfstate-dev` + `mypal-tfstate-lock`; one bucket, two keys)?
+- [ ] `acm` + `nat` as small modules (vs inline)?
+- [ ] Migrations: entrypoint `db:prepare` vs one-off `ecs run-task`?
+- [ ] Apply rights: write + `validate`/`plan` only, leaving `apply`/`destroy` to the user?
