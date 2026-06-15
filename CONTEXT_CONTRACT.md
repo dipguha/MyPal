@@ -4,8 +4,8 @@
 |---|---|
 | **File** | `CONTEXT_CONTRACT.md` |
 | **Purpose** | Single reference for which file owns which context. One job per file — no overlap, no duplication. Used by Cowork, Claude Code, and human contributors to decide where a rule or fact lives and where to read it. |
-| **Version** | 1.0 |
-| **Last updated** | 2026-06-12 UTC |
+| **Version** | 1.1 |
+| **Last updated** | 2026-06-15 UTC |
 
 ---
 
@@ -27,6 +27,7 @@ When you need to add a rule, update a decision, or document a convention, this t
 | **`docs/architecture.md`** | System architecture narrative: request flow diagram, services overview, data model summary, app layout, phased delivery plan. | ADR rationale (lives in adrs.md). Design tokens or component specs. |
 | **`docs/adrs.md`** | ADR register — product and infrastructure-level decisions only. Each ADR: context, decision, consequences. Implementation-specific decisions (e.g. which gem, which library) belong in the relevant subtree CLAUDE.md, not here. | Re-explaining architecture narratively. UI or workflow rules. |
 | **`docs/design-system.md`** | Single source of visual and UX truth: colour tokens, typography, spacing, and the **full component catalogue** (ScopePicker, ForPicker, GroupHeader, fldLbl/fldInp, modal anatomy, WrapRow, DataRow, ForVisPair, FreqLeadPair, RowModalSync, ItemRow, Badge). | Workflow. Backend conventions. Anything not visual/UX. |
+| **`docs/flows/*`** | Code-grounded, end-to-end walkthroughs of how a feature flow works — the files, functions, and data through each tier. Generated/refreshed by `/tech_flow`; describes the code as it is now. | Forward-looking plans (→ `_plans/`). Decision rationale (→ `adrs.md`). System-level architecture narrative (→ `architecture.md`). |
 | **`_UI/CLAUDE.md`** | Rules for working inside the prototype directory: the working-vs-canonical copy rule, the `T.xxx` inline-style convention (vs Tailwind in production), file naming under `_UI/`. Points to `docs/design-system.md` for the catalogue — never repeats it. | A copy of the component catalogue. Workflow steps. |
 | **`_UI/ui-prototype.md`** | How `mypal-app.jsx` is structured: NAV/SUBNAV map, screen-component naming pattern, CSS class conventions used in the prototype, current module inventory. | Design contract or component specs (those live in design-system.md). |
 | **`_specs/CLAUDE.md`** | Spec naming convention, area-slug table, the cross-cutting "always read these before implementing" list, spec status index. | Design rules. Backend conventions. |
@@ -72,6 +73,7 @@ Apply these checks whenever a file is created or edited.
 | How to run locally | `README.md` |
 | How Cowork and Claude Code divide the work | `_workflow/workflow.md` |
 | System architecture and request flow | `docs/architecture.md` |
+| How a feature flow works end-to-end (files + data) | `docs/flows/` |
 | Why we made a product or infra decision | `docs/adrs.md` |
 | Colour tokens, component specs, design rules | `docs/design-system.md` |
 | Rules for editing the UI prototype | `_UI/CLAUDE.md` |
