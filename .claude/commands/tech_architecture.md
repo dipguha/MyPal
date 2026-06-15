@@ -73,7 +73,7 @@ Read `.claude/commands/references/architecture_template.md` and follow its struc
 
 - **Create mode:** instantiate the template, set Version `1.0`, stamp Updated by / Last updated, write the first revision-history row.
 - **Update mode:** edit the affected sections in place, refresh diagrams that drifted, bump the **Version** (patch/minor/major per the rule in the header), update **Last updated** + **Updated by**, and append a revision-history row summarising the change. Do not wipe prior history.
-- Use **Mermaid** for diagrams (renders on GitHub), **UK English**, and the project's GBP/DD-MM-YYYY conventions in any examples.
+- **Every diagram appears twice:** a Mermaid fenced block (renders on GitHub) immediately followed by an **equivalent ASCII** diagram in a plain fenced code block (renders in any editor without an extension). Keep the two in sync. Use **UK English** and the project's GBP/DD-MM-YYYY conventions in any examples.
 - Keep it an orientation map, not a data dictionary — capture shapes, invariants, and the request flow; defer exhaustive detail to the source-of-truth files via the §8 cross-reference table.
 
 ---
@@ -111,5 +111,5 @@ Before finishing, check:
 - **No contradiction with ADRs.** If the doc and an ADR disagree, the ADR was updated first (step 4) — they now agree.
 - **Honest about reality.** Not-yet-built parts are marked, not implied as running code (the backend is currently scaffolding-only — say so where relevant).
 - **Headers maintained.** Both touched docs have a bumped version, a real `date -u` timestamp, an Updated by, and a new revision-history row; header and latest history row agree.
-- **Diagrams valid.** Mermaid blocks parse and match the prose.
+- **Diagrams valid & dual-format.** Mermaid blocks parse and match the prose, and **each has an equivalent ASCII block** beside it (kept in sync).
 - **Orientation, not duplication.** The doc points to source-of-truth files rather than copying schemas or code wholesale.

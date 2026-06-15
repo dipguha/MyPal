@@ -86,7 +86,7 @@ class CreateBaseline < ActiveRecord::Migration[7.2]
     # 4. users — auth identity; one per person who can log in
     # ----------------------------------------------------------------
     create_table :users, id: :uuid do |t|
-      t.references :account,      type: :uuid, null: false, foreign_key: { on_delete: :cascade }
+      t.references :account,      type: :uuid, null: false, foreign_key: { on_delete: :cascade }, index: false
       t.string     :cognito_sub,  limit: 255, null: false
       t.column     :email,        :citext
       t.string     :phone,        limit: 30
@@ -106,8 +106,8 @@ class CreateBaseline < ActiveRecord::Migration[7.2]
     #    user_id is nullable: children have a members row but no users row
     # ----------------------------------------------------------------
     create_table :members, id: :uuid do |t|
-      t.references :account, type: :uuid, null: false, foreign_key: { on_delete: :cascade }
-      t.references :user,    type: :uuid,              foreign_key: { on_delete: :nullify }
+      t.references :account, type: :uuid, null: false, foreign_key: { on_delete: :cascade }, index: false
+      t.references :user,    type: :uuid,              foreign_key: { on_delete: :nullify }, index: false
       t.bigint     :role_id,              null: false
       t.string     :display_name, limit: 100, null: false
       t.string     :first_name,   limit: 80
@@ -129,7 +129,7 @@ class CreateBaseline < ActiveRecord::Migration[7.2]
     # 6. account_settings — one per account; created during onboarding
     # ----------------------------------------------------------------
     create_table :account_settings, id: :uuid do |t|
-      t.references :account, type: :uuid, null: false, foreign_key: { on_delete: :cascade }
+      t.references :account, type: :uuid, null: false, foreign_key: { on_delete: :cascade }, index: false
       t.string  :currency,       limit: 3,  null: false, default: "GBP"
       t.string  :timezone,       limit: 60, null: false, default: "Europe/London"
       t.string  :date_format,    limit: 20, null: false, default: "DD/MM/YYYY"
@@ -144,7 +144,7 @@ class CreateBaseline < ActiveRecord::Migration[7.2]
     # 7. member_settings — one per member; created at sign-up
     # ----------------------------------------------------------------
     create_table :member_settings, id: :uuid do |t|
-      t.references :member, type: :uuid, null: false, foreign_key: { on_delete: :cascade }
+      t.references :member, type: :uuid, null: false, foreign_key: { on_delete: :cascade }, index: false
       t.string  :theme, limit: 10, null: false, default: "dark"
       t.jsonb   :notification_prefs, null: false,
                 default: { "email" => true, "sms" => true, "push" => true, "digest_time" => "08:00" }

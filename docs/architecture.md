@@ -4,13 +4,15 @@
 |---|---|
 | **File** | `docs/architecture.md` |
 | **Purpose** | The single orientation map for how MyPal is built end to end — components, the request flow, auth, data, and deployment. When you ask "how does a request actually get from the browser to the database?", this is the first place to look. For *why* a decision was made, follow the link to the relevant ADR in `docs/adrs.md`. |
-| **Version** | 1.0 |
+| **Version** | 1.4 |
 | **Updated by** | Claude Code |
-| **Last updated** | 13/06/2026 15:45 UTC |
+| **Last updated** | 14/06/2026 17:12 UTC |
 
 **Maintaining this file.** Every edit must: (1) bump the **Version** (patch for wording, minor for a new section or diagram, major for a structural rewrite), (2) update **Last updated** to the current UTC time (`date -u +"%d/%m/%Y %H:%M UTC"` — never guess), (3) set **Updated by**, (4) append a row to the Revision history table at the bottom. The header and the latest revision-history row must always agree. This document **describes the target design** and marks anything not yet built with _(not yet built)_ so the gap is explicit rather than silent. It never contradicts an ADR — if the design changes, change the ADR first (via `/tech_architecture`), then reflect it here.
 
-> **Build-state legend.** ✅ built · 🟡 scaffolded (structure exists, bodies incomplete) · 🔴 _(not yet built)_ — design only. As of v1.0 the frontend is largely built, the Rails backend is design-only, and infrastructure is scaffolded.
+> **Diagram convention.** Every diagram is provided in **both** Mermaid (renders on GitHub) and an equivalent ASCII block (renders in any editor without an extension). Keep the two in sync when editing.
+
+> **Build-state legend.** ✅ built · 🟡 scaffolded (structure exists, bodies incomplete) · 🔴 _(not yet built)_ — design only. As of v1.1 the frontend is largely built; the Rails backend is scaffolded with the **sign-up / auth + identity slice implemented** (other feature modules pending); infrastructure is scaffolded.
 
 ---
 
@@ -22,10 +24,25 @@ MyPal is a UK family digital assistant: one `account` per household, up to six `
 flowchart LR
   User([Family member]) --> Browser["Next.js app<br/>(App Router, browser)"]
   Browser -->|/api/*| BFF["Next.js server<br/>BFF + NextAuth v5"]
-  BFF -->|"Bearer JWT"| Rails["Rails API-only 🔴"]
+  BFF -->|"Bearer JWT"| Rails["Rails API-only ✅ auth"]
   Rails --> DB[(PostgreSQL)]
   BFF -.OAuth.-> Cognito[(AWS Cognito)]
   Rails -.JWKS.-> Cognito
+```
+
+```text
+ Family member
+      │
+      ▼
+ ┌─────────────┐  /api/*   ┌──────────────────┐  Bearer JWT  ┌──────────────┐     ┌────────────┐
+ │   Browser   │ ────────▶ │  Next.js server  │ ───────────▶ │  Rails API   │ ──▶ │ PostgreSQL │
+ │ (App Router)│           │  BFF + NextAuth  │              │  (API-only)  │     └────────────┘
+ └─────────────┘           └────────┬─────────┘              └──────┬───────┘
+                                    │ OAuth                         │ JWKS
+                                    ▼                               ▼
+                            ┌───────────────────────────────────────────┐
+                            │                AWS Cognito                 │
+                            └───────────────────────────────────────────┘
 ```
 
 Authoritative decisions behind this shape: ADR-001 (tenancy), ADR-010 (BFF auth), ADR-015 (Rails), ADR-002 (Pundit authorisation).
@@ -37,19 +54,21 @@ Authoritative decisions behind this shape: ADR-001 (tenancy), ADR-010 (BFF auth)
 ### Frontend — Next.js App Router ✅
 `frontend/src/app/` split into two route groups: `(public)` (sign-in, sign-up, forgot-password) and `(app)` (the authenticated shell with all protected areas — today, life-admin, finance, health, recipes, travel, account, onboarding). `(app)/layout.tsx` is the server-side auth gate. State: **TanStack Query** for server state (one hook file per domain in `src/hooks/`), **Zustand**/`useState` for ephemeral UI state, `react-hook-form` + `zod` for forms. Styling is **Tailwind CSS v4 only** — no third-party UI libraries; shared primitives live in `src/components/ui/`. Governed by `frontend/CLAUDE.md` and `docs/design-system.md`.
 
-### BFF & auth layer — Next.js server ✅ (🟡 Rails target)
+### BFF & auth layer — Next.js server ✅
 NextAuth v5 (`frontend/auth.ts`) runs the Cognito OAuth exchange server-side and stores tokens in an encrypted httpOnly cookie. The browser never calls Rails directly — it calls `/api/<path>` and the proxy forwards to the backend with a Bearer token. Key files: `src/app/api/[...path]/route.ts` (authenticated proxy), `src/app/api/public/[...path]/route.ts` (unauthenticated), `src/app/api/auth/[...nextauth]/` (NextAuth handlers), `middleware.ts` (route enforcement), `src/lib/api.ts` (typed fetcher). See §4 and ADR-010.
 
-> 🔴 **Known drift:** the proxy currently targets `FASTAPI_INTERNAL_URL` (port 8000) and its comments still say "FastAPI". Per ADR-015 / `frontend/CLAUDE.md`, this must be renamed to `RAILS_INTERNAL_URL` when the Rails backend is stood up.
+> ✅ **Resolved (v1.1):** the proxy now targets `RAILS_INTERNAL_URL` (port 3001) per ADR-015; the old `FASTAPI_INTERNAL_URL` naming has been removed across the proxies, `auth.ts`, and env files.
 
-### Backend — Rails API-only 🔴
-Design-only as of v1.0: `backend/` contains just `CLAUDE.md` — no `app/`, no Rails scaffold, no Dockerfile. The intended layout (per `backend/CLAUDE.md`): thin controllers under `app/controllers/api/v1/` → fat services in `app/services/` → ActiveRecord models; **Pundit** policies in `app/policies/` (`pundit_user` = `current_member`); **Blueprinter** serializers; JWT verification in `app/lib/cognito_jwt_verifier.rb`. All endpoints versioned under `/api/v1/`. See ADR-015 and §4.
+### Backend — Rails API-only ✅ (auth slice) / 🟡 (feature modules)
+Scaffolded (Rails 7.2, API-only) with the sign-up/auth + identity slice implemented; other feature modules are pending. Layout (per `backend/CLAUDE.md`): thin controllers under `app/controllers/api/v1/` → fat services in `app/services/` → ActiveRecord models; **Pundit** policies in `app/policies/` (`pundit_user` = `current_member`); **Blueprinter** serializers; JWT verification in `app/services/cognito_jwt_verifier.rb`. Cognito sign-up lives in `CognitoService`; the account-creation transaction in `AccountBootstrapService`. All endpoints are versioned under `/api/v1/` (`auth/sign-up|confirm|resend-verification|me`, plus `/healthz`). Tests are RSpec request/service/model specs. See ADR-015 and §4.
+
+> Note: `CognitoJwtVerifier` lives in `app/services/`, not `app/lib/` as `backend/CLAUDE.md` suggests — an `app/lib` autoload root broke test-env boot under `enable_reloading=false`.
 
 ### Data layer — PostgreSQL ✅ (baseline) / 🟡 (full schema)
 `db/migrate/` is the **source of truth**; `db/mypal-schema.sql` is a reference document only and must never be edited directly (ADR-015, `backend/CLAUDE.md`). The baseline migration creates the 7 identity tables needed for sign-up/sign-in/onboarding; feature tables are added per-feature. See §5.
 
 ### Infrastructure — AWS / Terraform 🟡
-`infrastructure/` holds a Terraform layout with reusable `modules/` (network, alb, ecs, ecr, database, s3, cognito, ci, secrets, observability) consumed by `environments/dev` and `environments/prod`. Module bodies are currently stubs (e.g. `modules/ci/main.tf`: "Resources will be defined in Phase 1"). There is no per-area `infrastructure/CLAUDE.md` yet (the root context map references one — a documentation gap). See §6.
+`infrastructure/` holds a Terraform layout with reusable `modules/` (network, alb, ecs, ecr, database, s3, cognito, ci, secrets, observability) consumed by `environments/dev` and `environments/prod`. Module bodies are currently stubs (e.g. `modules/ci/main.tf`: "Resources will be defined in Phase 1"). Conventions are in `infrastructure/CLAUDE.md`; the agreed deployment design is in `infrastructure/deployment-architecture.md` (ADR-016). See §6.
 
 ---
 
@@ -80,6 +99,22 @@ sequenceDiagram
   end
 ```
 
+```text
+ Browser          Next.js BFF             Rails API          Cognito JWKS    PostgreSQL
+   │ fetch /api/<path> │                       │                  │              │
+   │─────────────────▶ │ auth(): read token    │                  │              │
+   │                   │   from httpOnly cookie │                  │              │
+   │  401 (no session) │◀── if no session ──── │                  │              │
+   │                   │ forward + Bearer token │                  │              │
+   │                   │──────────────────────▶ │ verify JWT ────▶ │              │
+   │                   │                        │ sub → member     │              │
+   │                   │                        │ Pundit + scope   │              │
+   │                   │                        │ scoped query ──────────────────▶│
+   │                   │                        │◀──────── rows ──────────────────│
+   │                   │◀── JSON (Blueprinter)  │                  │              │
+   │◀── JSON ───────── │                        │                  │              │
+```
+
 **Hop by hop:**
 1. **Browser → BFF.** Browser code calls `/api/<path>` via the `api<T>()` fetcher (`src/lib/api.ts`). It never holds a Cognito token — that would expose it to XSS (ADR-010).
 2. **BFF reads the session.** The proxy calls `auth()` to read the access token from the encrypted httpOnly cookie server-side. No session → `401`.
@@ -105,11 +140,13 @@ See ADR-010 (BFF), ADR-002 (Pundit), ADR-001 (account scoping).
 
 ## 5. Data model & multi-tenancy
 
-**Tenancy (ADR-001).** `accounts` is the top-level tenant. Every member is a `members` row scoped to an account; a `users` row (holding the Cognito `sub`) exists only for members who can log in. Children are first-class members with `user_id = NULL`. Roles live in the `member_roles` lookup (self-referential hierarchy: admin → partner → member → child/grandparent); `members.role_id` points to it, with `members.is_admin` as a convenience flag.
+**Tenancy (ADR-001).** `accounts` is the top-level tenant. Every member is a `members` row scoped to an account; a `users` row (holding the Cognito `sub`) exists only for members who can log in. Children are first-class members with `user_id = NULL`. Roles live in the `member_roles` lookup (self-referential hierarchy: **owner → admin → adult → {grandparent, teenager, child}** — the canonical access-control set); `members.role_id` points to it, with `members.is_admin` as a convenience flag.
+
+**Groups (access-control foundation).** `groups` + `group_members` back the **Household Managers Group (HMG)**, created per account at sign-up with the Owner as first member (G-01). The **Family** group is virtual (resolved as `account_id` match — no rows). The full access-control model (permissions matrix, `assigned_to`/`visible_to` visibility) is still pending; only the role set + HMG foundation ship with sign-up.
 
 **Plan tiers (ADR-003).** `accounts.plan` is a `VARCHAR` with a CHECK constraint allowing **only** `'solo'` and `'family'` — labelled "Individual" (£2.99/mo) and "Family" (£4.99/mo) in UI; raw values never shown. The `account_types` and `social_logins` tables are deliberately **not** created (ADR-003); Cognito owns OAuth connections.
 
-**Baseline migration** (`db/migrate/20260612000001_create_baseline.rb`) creates 7 tables: `member_roles`, `role_permissions`, `accounts`, `users`, `members`, `account_settings`, `member_settings`. Extensions: `citext` (emails), `pgcrypto` (`gen_random_uuid()`). Feature tables (finance, health, recipes, tasks, journal, etc.) are added by their own migrations.
+**Migrations** live in `backend/db/migrate/`. The baseline migration creates 7 identity tables (`member_roles`, `role_permissions`, `accounts`, `users`, `members`, `account_settings`, `member_settings`); subsequent migrations reseed `member_roles` to the canonical set, add `groups`/`group_members`, and add `users.marketing_opt_in` + `members.onboarding_complete`. Extensions: `citext`, `pgcrypto`. Feature tables (finance, health, recipes, tasks, journal, etc.) are added by their own migrations.
 
 > 🟡 **Schema reference drift.** `db/mypal-schema.sql` is a v3.0 snapshot describing ~57 tables and **still includes `account_types`, `social_logins`, and a three-value `plan` CHECK** — all superseded by ADR-003. Treat the migrations as authoritative; the SQL file is an aspirational full-model reference pending a refresh. Locale defaults (`GBP`, `Europe/London`, `DD/MM/YYYY`) are seeded in `account_settings`.
 
@@ -118,6 +155,8 @@ For the full table inventory, consult `db/mypal-schema.sql`; this document captu
 ---
 
 ## 6. Deployment topology 🟡
+
+> **Agreed deployment design (ADR-016):** ECS Fargate with the ALB public and the app + data tiers in **private** subnets behind a NAT (Option C); per-session ephemeral environments on `*.mydigitalpals.com` (`dev` first). Full detail — VPC/subnet layout, resource inventory, env/secret matrix, cost, and the spin-up/teardown runbook — is in **`infrastructure/deployment-architecture.md`**.
 
 Target topology, expressed as Terraform modules under `infrastructure/modules/`, composed per environment in `infrastructure/environments/{dev,prod}`:
 
@@ -141,7 +180,29 @@ flowchart TB
   Obs["Observability (module: observability)"] -.-> API
 ```
 
-Modules and environments are scaffolded but their resource bodies are largely stubs as of v1.0. Frontend ships via `frontend/Dockerfile`; the backend has no Dockerfile yet (🔴). Governed by the intended `infrastructure/CLAUDE.md` (🔴 not yet written).
+```text
+                         Internet
+                            │
+                            ▼
+ ┌──────────────────────── VPC (module: network) ────────────────────────┐
+ │   ┌─────────────────────────┐                                          │
+ │   │  ALB (module: alb)       │                                         │
+ │   └─────────┬───────┬────────┘                                         │
+ │             ▼       ▼                                                   │
+ │   ┌──────────────┐ ┌──────────────┐      ┌─────────────────────────┐   │
+ │   │ ECS: Next.js │ │  ECS: Rails  │ ───▶ │ RDS PostgreSQL (database)│   │
+ │   │    (ecs)     │ │    (ecs)     │ ───▶ │ S3 (module: s3)          │   │
+ │   └──────┬───────┘ └──────┬───────┘      └─────────────────────────┘   │
+ │          ┊ OAuth          ┊                                            │
+ └──────────┊────────────────┊────────────────────────────────────────── ┘
+            ▼                 ▼
+       Cognito (cognito)   Secrets Manager (secrets) · Observability (obs)
+       ECR (ecr) ┄┄ images ┄┄▶ ECS tasks
+```
+
+> The detailed, decided deployment shape (Option C — ALB-public / app+data private + NAT) is in `infrastructure/deployment-architecture.md` (also drawn in both Mermaid and ASCII).
+
+Modules and environments are scaffolded but their resource bodies are largely stubs. Frontend ships via `frontend/Dockerfile`; the backend has `backend/Dockerfile` (production) and `backend/Dockerfile.dev` (local). **Local dev** runs via the root `docker-compose.yml` — a `db` (postgres:16, own volume, host 5433) and `backend` (Rails on 3001) service; the frontend runs on the host (`npm run dev`, 3000). Terraform conventions are in `infrastructure/CLAUDE.md`.
 
 ---
 
@@ -160,7 +221,8 @@ Design-only. The intended pipeline is GitHub Actions authenticating to AWS via *
 | Rails conventions, JWT, Pundit, Blueprinter, RSpec | `backend/CLAUDE.md` |
 | Tailwind, BFF contract, NextAuth, ui/ primitives, responsive rules | `frontend/CLAUDE.md` |
 | Colour tokens, component catalogue, UX patterns | `docs/design-system.md` |
-| Terraform layout, deployment | `infrastructure/README.md` (and `infrastructure/CLAUDE.md` once written) |
+| Terraform conventions | `infrastructure/CLAUDE.md` |
+| Deployment design (topology, runbook) | `infrastructure/deployment-architecture.md` |
 | Access-control / visibility / HMG model | `_specs/platform--access-control.md` |
 | Product vocabulary (roles, terms, plan labels) | `_specs/terminology.md` |
 | Full database table inventory | `db/mypal-schema.sql` (reference) · `db/migrate/` (authoritative) |
@@ -172,3 +234,7 @@ Design-only. The intended pipeline is GitHub Actions authenticating to AWS via *
 | Version | Updated by | Last updated (UTC) | Summary |
 |---|---|---|---|
 | 1.0 | Claude Code | 13/06/2026 15:45 UTC | Initial architecture document. Covers system context, component overview, the signed-in request flow, auth & authorisation, data model & multi-tenancy, deployment topology, and CI/CD. Grounded in the current codebase: notes the FastAPI→Rails proxy drift, the Rails backend as design-only, infra as scaffolded, no CI yet, and the stale `mypal-schema.sql` vs ADR-003. |
+| 1.1 | Claude Code | 13/06/2026 18:49 UTC | Sign-up implementation: Rails backend now scaffolded with the auth + identity slice built (CognitoService, AccountBootstrapService, `/api/v1/auth/*`, RSpec); BFF proxy drift resolved (RAILS_INTERNAL_URL); added `groups`/`group_members` + canonical role set to the data model; documented the docker-compose local dev setup; noted CognitoJwtVerifier in `app/services/`. |
+| 1.2 | Claude Code | 14/06/2026 16:18 UTC | §6: added pointer to the agreed AWS deployment design (ADR-016 + `infrastructure/deployment-architecture.md`). |
+| 1.3 | Claude Code | 14/06/2026 16:33 UTC | Added ASCII versions alongside every Mermaid diagram (§1, §3, §6) and a diagram convention note (both formats, kept in sync). |
+| 1.4 | Claude Code | 14/06/2026 17:12 UTC | `infrastructure/CLAUDE.md` now exists — updated §2/§6 and the §8 cross-reference table (removed "not yet written" notes; split Terraform conventions vs deployment design). |

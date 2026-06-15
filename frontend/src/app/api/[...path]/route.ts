@@ -1,4 +1,4 @@
-// Generic BFF proxy: forwards browser requests to FastAPI, attaching the
+// Generic BFF proxy: forwards browser requests to the Rails API, attaching the
 // Cognito access token from the NextAuth session. No business logic lives
 // here — keep this thin.
 
@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { auth } from "../../../../auth";
 
-const FASTAPI = process.env.FASTAPI_INTERNAL_URL ?? "http://localhost:8000";
+const RAILS = process.env.RAILS_INTERNAL_URL ?? "http://localhost:3001";
 
 async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const session = await auth();
@@ -15,7 +15,7 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   }
 
   const { path } = await ctx.params;
-  const url = new URL(`/api/v1/${path.join("/")}`, FASTAPI);
+  const url = new URL(`/api/v1/${path.join("/")}`, RAILS);
   url.search = req.nextUrl.search;
 
   const headers = new Headers(req.headers);
