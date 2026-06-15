@@ -51,7 +51,8 @@ Three specs apply across all features. Always read them before writing a tech pl
 | `sign-in.md` | Sign In | `_plans/sign-in_tech.md` | Tech plan exists |
 | `sign-up.md` | Sign Up | `_plans/sign-up_tech.md` | Tech plan exists |
 | `user-sign-up.md` | User sign-up flow | — | Draft |
-| `onboarding.md` | Onboarding | `_plans/onboarding_tech.md` | Tech plan exists |
+| `onboarding.md` | Onboarding *(superseded — see platform--onboarding.md)* | `_plans/onboarding_tech.md` | Tech plan exists; spec rewritten to v3 template |
+| `platform--onboarding.md` | Onboarding (v3) | `_plans/onboarding_tech.md` | Draft v1.0 — rewritten to spec template v3 |
 | `today-daily-brief.md` | Today — Daily Briefing | `_plans/today-daily-brief_tech.md` | Tech plan exists |
 | `life-admin-to-dos.md` | Life Admin — To Dos *(now: Tasks)* | `_plans/life-admin-to-dos_tech.md` | Tech plan exists — note module renamed Tasks |
 | `life-admin-reminders.md` | Life Admin — Reminders *(absorbed into Tasks)* | `_plans/life-admin-reminders_tech.md` | Superseded — Reminders merged into Tasks module |
