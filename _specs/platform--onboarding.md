@@ -10,7 +10,7 @@
 **Module / nav location:** Platform → Onboarding (post sign-up)
 **Author:** Dip
 **Status:** Draft
-**Last updated:** 2026-06-15 10:01
+**Last updated:** 2026-06-15 10:16
 
 ### Problem statement
 
@@ -95,8 +95,8 @@ Every member goes through their own onboarding journey on first sign-in. The ste
 - Child: Welcome → Profile → Done (3 steps — no Briefing or Interests)
 
 Roles assignable to added family members: **Admin, Adult Member, Grand Parent, Teenager, Child**.
-Child members do not receive an invitation email — their profile is created by the Owner or Admin.
-All other roles (Admin, Adult Member, Grand Parent, Teenager) each receive a Cognito invitation email.
+Child members have an optional email field — if an email is provided, a Cognito invitation email is sent; if left blank, no invitation is sent and the profile is created by the Owner or Admin.
+All other roles (Admin, Adult Member, Grand Parent, Teenager) require an email and always receive a Cognito invitation email.
 
 ---
 
@@ -113,8 +113,8 @@ Priority key: **P0** = must have at launch · **P1** = should have · **P2** = n
 |---|-------------|----------|-----------|
 | F-01 | Onboarding stepper adapts to role and plan: Owner/Admin on Family plan see 6 steps; Owner on Individual plan and all other roles see 5 steps; Child sees 3 steps | P0 | Stepper — Owner/Admin Family plan; Stepper — Owner Individual plan; Stepper — non-Owner member; Stepper — Child |
 | F-02 | Profile step is shown to every role; collects display name (pre-filled from sign-up first name) and requires an emoji avatar selection before continuing | P0 | Profile step — happy path; Profile step — continue blocked without avatar; Profile step — server rejects missing avatar |
-| F-03 | Family step is shown to Owner and Admin on Family plan only; allows adding members with name, role, and email; Child members have no email field; maximum 5 additional members | P0 | Family step — add member; Family step — Child hides email; Family step — member cap enforced; Family step — non-Owner/Admin rejected |
-| F-04 | Submitting the Family step fires one Cognito invitation email per member with an email address; fires on "Continue", not on individual member add | P0 | Family step — invitations fire on Continue; Child receives no invitation; invitation failure does not block onboarding |
+| F-03 | Family step is shown to Owner and Admin on Family plan only; allows adding members with name, role, and email; Child email is optional — all other roles require an email; maximum 5 additional members | P0 | Family step — add member; Family step — Child email optional; Family step — member cap enforced; Family step — non-Owner/Admin rejected |
+| F-04 | Submitting the Family step fires one Cognito invitation email per member who has an email address, including Child members where an email was provided; fires on "Continue", not on individual member add | P0 | Family step — invitations fire on Continue; Child with email receives invitation; Child without email receives no invitation; invitation failure does not block onboarding |
 | F-05 | Daily Briefing step is shown to all roles except Child; collects home postcode, work address, commute mode, and news topics; step is skippable | P0 | Briefing step — save; Briefing step — skip; Child does not see Briefing step |
 | F-06 | Interests step is shown to all roles except Child; displays a tag cloud; members can select up to 5 tags; further taps ignored until a tag is deselected; step is skippable | P1 | Interests step — select tags; Interests step — cap at 5; Interests step — skip; Child does not see Interests step |
 | F-07 | Done screen shows a contextual summary: completed items show a green checkmark; skipped items show a muted dash and "set up any time in My Account" | P0 | Done screen — all completed; Done screen — partial completion |
@@ -204,10 +204,10 @@ Feature: Family step is shown to Owner and Admin on Family plan only
       | Owner |
       | Admin |
 
-  Scenario: Family step — Child hides email field
+  Scenario: Family step — Child email optional
     Given the member selects role "Child" in the add member form
-    Then the email field is hidden
-    And the "No invitation" label is shown in its place
+    Then the email field is shown but marked as optional
+    And a hint reads "Leave blank if the child does not have an email address"
 
   Scenario: Family step — member cap enforced
     Given 5 family members have already been added
@@ -235,13 +235,18 @@ Feature: Invitation emails fire on Family step Continue
     Given an Owner or Admin is on the Family step and has added members to the pending list
 
   Scenario: Family step — invitations fire on Continue
-    Given the pending list includes 2 members with email addresses and 1 Child
+    Given the pending list includes 2 Adult Members with emails, 1 Child with an email, and 1 Child without an email
     When the member clicks "Continue"
-    Then exactly 2 Cognito invitation emails are sent
-    And the Child receives no invitation email
+    Then exactly 3 Cognito invitation emails are sent (2 Adult Members + 1 Child with email)
+    And the Child without an email receives no invitation
 
-  Scenario: Child receives no invitation
-    Given a member with role "Child" has been added with no email
+  Scenario: Child with email receives invitation
+    Given a Child member has been added with an email address
+    When the member clicks "Continue"
+    Then a Cognito invitation email is sent for that Child
+
+  Scenario: Child without email receives no invitation
+    Given a Child member has been added with no email address
     When the member clicks "Continue"
     Then no invitation email is sent for that Child
 
@@ -522,7 +527,7 @@ Feature: Onboarding edge cases and error handling
 | `members.display_name` | Member's chosen display name | Yes | Pre-filled from sign-up first_name; editable during onboarding |
 | `members.avatar_emoji` | Selected emoji character | Yes | Chosen from a fixed set in Phase 1; required before Profile step can continue |
 | `members.role` | Role assigned to a family member | Yes (per added member) | Enum: `owner`, `admin`, `adult_member`, `teenager`, `child` |
-| `users.email` | Email address for invitation | Conditional | Required for Admin, Adult Member, Teenager; absent for Child; stored on users record created at invitation acceptance |
+| `users.email` | Email address for invitation | Conditional | Required for Admin, Adult Member, Grand Parent, Teenager; optional for Child; stored on users record created at invitation acceptance |
 | `member_settings.home_postcode` | Home postcode for weather | No | Saved on Briefing step Continue |
 | `member_settings.work_address` | Work address for commute | No | Saved on Briefing step Continue |
 | `member_settings.commute_mode` | Preferred commute mode | No | Enum: `drive`, `transit`, `cycle`, `walk` |
@@ -542,7 +547,7 @@ Feature: Onboarding edge cases and error handling
 
 **Profile step:** Shown to every role. Display name input pre-filled with the member's first name. Emoji avatar grid (12 options in Phase 1). Avatar selection is required — "Continue" is disabled until an avatar is chosen. No skip option on this step.
 
-**Family step (Owner and Admin on Family plan only):** The current member is shown greyed out at the top with their role badge. Added members are listed below with name, role badge, and email (or "No invitation" for Child). Add member form: name, role dropdown, conditional email field (hidden when Child is selected). Up to 5 additional members. "Skip — add later" available.
+**Family step (Owner and Admin on Family plan only):** The current member is shown greyed out at the top with their role badge. Added members are listed below with name, role badge, and email (or "No email" if none provided). Add member form: name, role dropdown, email field. For all roles except Child the email field is required. For Child the email field is optional with a hint: "Leave blank if the child does not have an email address." A Cognito invitation is sent to any member — including a Child — who has an email address. Up to 5 additional members. "Skip — add later" available.
 
 **Daily Briefing step (all roles except Child):** Home postcode and work address (text inputs), commute mode (4-option pill selector: Drive / Transit / Cycle / Walk), news topics (multi-select tags). "Skip for now" available.
 
@@ -614,3 +619,4 @@ Feature: Onboarding edge cases and error handling
 | 0.2 | 2026-05-20 00:00 | Dip | Resolved all open questions: briefing settings in member_settings table; interests capped at 5; pending invites flagged after 10 days |
 | 1.0 | 2026-06-15 09:36 | Cowork | Rewritten to spec template v3: renamed platform--onboarding.md; §5 split into §5a requirements index + §5b Gherkin scenarios; §7 user flows converted to Gherkin; terminology updated to canonical terms (member not user, Child not Children); date format updated to YYYY-MM-DD HH24:MI; NF-04 privacy enforcement added; §12 DoD updated to v3 standard |
 | 1.1 | 2026-06-15 10:01 | Cowork | Added Grand Parent role throughout; every role now has their own onboarding journey (Profile, Briefing, Interests); Family step restricted to Owner and Admin only; Child onboarding reduced to 3 steps (Welcome, Profile, Done); stepper logic updated by role and plan; §3 personas, §4 roles table, §5a/§5b, §5.1, §7, §9 all updated |
+| 1.2 | 2026-06-15 10:16 | Cowork | Child email field changed from hidden to optional — invitation sent if email provided, skipped if blank; updated §4 notes, F-03, F-04, §5b Gherkin, §8 data model, §9 UI/UX |
