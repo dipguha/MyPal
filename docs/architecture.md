@@ -4,9 +4,9 @@
 |---|---|
 | **File** | `docs/architecture.md` |
 | **Purpose** | The single orientation map for how MyPal is built end to end — components, the request flow, auth, data, and deployment. When you ask "how does a request actually get from the browser to the database?", this is the first place to look. For *why* a decision was made, follow the link to the relevant ADR in `docs/adrs.md`. |
-| **Version** | 1.3 |
+| **Version** | 1.4 |
 | **Updated by** | Claude Code |
-| **Last updated** | 14/06/2026 16:33 UTC |
+| **Last updated** | 14/06/2026 17:12 UTC |
 
 **Maintaining this file.** Every edit must: (1) bump the **Version** (patch for wording, minor for a new section or diagram, major for a structural rewrite), (2) update **Last updated** to the current UTC time (`date -u +"%d/%m/%Y %H:%M UTC"` — never guess), (3) set **Updated by**, (4) append a row to the Revision history table at the bottom. The header and the latest revision-history row must always agree. This document **describes the target design** and marks anything not yet built with _(not yet built)_ so the gap is explicit rather than silent. It never contradicts an ADR — if the design changes, change the ADR first (via `/tech_architecture`), then reflect it here.
 
@@ -68,7 +68,7 @@ Scaffolded (Rails 7.2, API-only) with the sign-up/auth + identity slice implemen
 `db/migrate/` is the **source of truth**; `db/mypal-schema.sql` is a reference document only and must never be edited directly (ADR-015, `backend/CLAUDE.md`). The baseline migration creates the 7 identity tables needed for sign-up/sign-in/onboarding; feature tables are added per-feature. See §5.
 
 ### Infrastructure — AWS / Terraform 🟡
-`infrastructure/` holds a Terraform layout with reusable `modules/` (network, alb, ecs, ecr, database, s3, cognito, ci, secrets, observability) consumed by `environments/dev` and `environments/prod`. Module bodies are currently stubs (e.g. `modules/ci/main.tf`: "Resources will be defined in Phase 1"). There is no per-area `infrastructure/CLAUDE.md` yet (the root context map references one — a documentation gap). See §6.
+`infrastructure/` holds a Terraform layout with reusable `modules/` (network, alb, ecs, ecr, database, s3, cognito, ci, secrets, observability) consumed by `environments/dev` and `environments/prod`. Module bodies are currently stubs (e.g. `modules/ci/main.tf`: "Resources will be defined in Phase 1"). Conventions are in `infrastructure/CLAUDE.md`; the agreed deployment design is in `infrastructure/deployment-architecture.md` (ADR-016). See §6.
 
 ---
 
@@ -202,7 +202,7 @@ flowchart TB
 
 > The detailed, decided deployment shape (Option C — ALB-public / app+data private + NAT) is in `infrastructure/deployment-architecture.md` (also drawn in both Mermaid and ASCII).
 
-Modules and environments are scaffolded but their resource bodies are largely stubs. Frontend ships via `frontend/Dockerfile`; the backend has `backend/Dockerfile` (production) and `backend/Dockerfile.dev` (local). **Local dev** runs via the root `docker-compose.yml` — a `db` (postgres:16, own volume, host 5433) and `backend` (Rails on 3001) service; the frontend runs on the host (`npm run dev`, 3000). Governed by the intended `infrastructure/CLAUDE.md` (🔴 not yet written).
+Modules and environments are scaffolded but their resource bodies are largely stubs. Frontend ships via `frontend/Dockerfile`; the backend has `backend/Dockerfile` (production) and `backend/Dockerfile.dev` (local). **Local dev** runs via the root `docker-compose.yml` — a `db` (postgres:16, own volume, host 5433) and `backend` (Rails on 3001) service; the frontend runs on the host (`npm run dev`, 3000). Terraform conventions are in `infrastructure/CLAUDE.md`.
 
 ---
 
@@ -221,7 +221,8 @@ Design-only. The intended pipeline is GitHub Actions authenticating to AWS via *
 | Rails conventions, JWT, Pundit, Blueprinter, RSpec | `backend/CLAUDE.md` |
 | Tailwind, BFF contract, NextAuth, ui/ primitives, responsive rules | `frontend/CLAUDE.md` |
 | Colour tokens, component catalogue, UX patterns | `docs/design-system.md` |
-| Terraform layout, deployment | `infrastructure/README.md` (and `infrastructure/CLAUDE.md` once written) |
+| Terraform conventions | `infrastructure/CLAUDE.md` |
+| Deployment design (topology, runbook) | `infrastructure/deployment-architecture.md` |
 | Access-control / visibility / HMG model | `_specs/platform--access-control.md` |
 | Product vocabulary (roles, terms, plan labels) | `_specs/terminology.md` |
 | Full database table inventory | `db/mypal-schema.sql` (reference) · `db/migrate/` (authoritative) |
@@ -236,3 +237,4 @@ Design-only. The intended pipeline is GitHub Actions authenticating to AWS via *
 | 1.1 | Claude Code | 13/06/2026 18:49 UTC | Sign-up implementation: Rails backend now scaffolded with the auth + identity slice built (CognitoService, AccountBootstrapService, `/api/v1/auth/*`, RSpec); BFF proxy drift resolved (RAILS_INTERNAL_URL); added `groups`/`group_members` + canonical role set to the data model; documented the docker-compose local dev setup; noted CognitoJwtVerifier in `app/services/`. |
 | 1.2 | Claude Code | 14/06/2026 16:18 UTC | §6: added pointer to the agreed AWS deployment design (ADR-016 + `infrastructure/deployment-architecture.md`). |
 | 1.3 | Claude Code | 14/06/2026 16:33 UTC | Added ASCII versions alongside every Mermaid diagram (§1, §3, §6) and a diagram convention note (both formats, kept in sync). |
+| 1.4 | Claude Code | 14/06/2026 17:12 UTC | `infrastructure/CLAUDE.md` now exists — updated §2/§6 and the §8 cross-reference table (removed "not yet written" notes; split Terraform conventions vs deployment design). |
