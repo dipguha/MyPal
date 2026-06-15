@@ -2,7 +2,7 @@
 name: tech_flow
 description: Explain how an end-to-end feature flow works in the actual code — tier by tier, citing the real files, functions, and the data that moves through each step. Use this skill whenever the user runs /tech_flow, asks "how does X work", "explain the X flow", or "walk me through X end to end". It traces the real source (frontend, BFF, backend, services, models, migrations), grounds every claim in real paths/functions, draws the flow in both Mermaid and ASCII, and saves a learning-oriented walkthrough to docs/flows/.
 argument-hint: a flow name, e.g. "sign up", "sign in", "create task"
-allowed-tools: Read, Glob, Grep, Write, Bash(git status:*, git branch:*, ls:*, find:*, date:*, mkdir:*)
+allowed-tools: Read, Glob, Grep, Write, Bash(git status:*, git branch:*, git rev-parse:*, ls:*, find:*, date:*, mkdir:*)
 ---
 
 # tech_flow — End-to-end Flow Explainer (for learning)
@@ -47,8 +47,14 @@ Per the project diagram convention, draw the flow as **a Mermaid block immediate
 ### 5. Assemble the walkthrough
 Use the Output template below. Be concrete and cite `path/to/file` (and `file:line` where it genuinely helps). Prefer naming the exact function/action over vague description.
 
-### 6. Save
-Run `mkdir -p docs/flows`, then write to `docs/flows/<slug>.md` using the doc header + revision-history convention used across the repo's docs. Confirm the saved path.
+### 6. Save — one living doc per flow (regenerate in place)
+Run `mkdir -p docs/flows`, then write to `docs/flows/<slug>.md`.
+
+- **There is exactly one file per flow.** Never create versioned filenames (`sign-up-v2.md`, dated copies, etc.) — **git is the version history** (each regeneration is a commit; use `git diff` to compare). This keeps the contract's "every fact in one place" rule.
+- **On a re-run for an existing flow, update in place:** overwrite the body to match current code, **bump the Version, and append a revision-history row** summarising what changed (preserve prior rows — do not reset to 1.0).
+- **Stamp the code state** the doc was generated against: capture `git branch --show-current` and `git rev-parse --short HEAD` and record them in the header **Code ref** row, so a reader knows which code the walkthrough reflects.
+
+Confirm the saved path.
 
 ### 7. Report
 Tell the user the saved path and give a 2–3 sentence summary of the flow. Note any gaps/drift you found.
@@ -67,6 +73,7 @@ Tell the user the saved path and give a 2–3 sentence summary of the flow. Note
 | **Version** | 1.0 |
 | **Updated by** | [name] |
 | **Last updated** | [DD/MM/YYYY HH:MM UTC] |
+| **Code ref** | [branch] @ [short SHA] — the code state this walkthrough describes |
 
 **Maintaining this file.** Bump version, restamp `date -u`, set Updated by, append a revision-history row on every edit. This describes real code — if the code changes, update or regenerate (`/tech_flow <flow>`).
 
