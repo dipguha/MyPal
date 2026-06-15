@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_06_13_000003) do
+ActiveRecord::Schema[7.2].define(version: 2026_06_15_112044) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "pgcrypto"
@@ -76,7 +76,13 @@ ActiveRecord::Schema[7.2].define(version: 2026_06_13_000003) do
     t.jsonb "notification_prefs", default: {"sms"=>true, "push"=>true, "email"=>true, "digest_time"=>"08:00"}, null: false
     t.jsonb "briefing_prefs", default: {"news"=>true, "email"=>true, "commute"=>true, "weather"=>true, "on_this_day"=>true, "school_commute"=>true}, null: false
     t.datetime "updated_at", default: -> { "now()" }, null: false
+    t.string "home_postcode", limit: 10
+    t.text "work_address"
+    t.string "commute_mode", limit: 10
+    t.string "news_topics", default: [], null: false, array: true
+    t.string "interests", default: [], null: false, array: true
     t.index ["member_id"], name: "index_member_settings_on_member_id", unique: true
+    t.check_constraint "commute_mode IS NULL OR (commute_mode::text = ANY (ARRAY['drive'::character varying, 'transit'::character varying, 'cycle'::character varying, 'walk'::character varying]::text[]))", name: "chk_member_settings_commute_mode"
     t.check_constraint "theme::text = ANY (ARRAY['dark'::character varying, 'light'::character varying]::text[])", name: "chk_theme"
   end
 

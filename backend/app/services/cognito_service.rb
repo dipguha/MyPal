@@ -78,6 +78,24 @@ class CognitoService
       )
     end
 
+    # Creates a Cognito user and sends the built-in invitation email (with a
+    # temporary password). Used for family-member invitations during onboarding.
+    # Admin op — requires IAM creds (like admin_delete).
+    # @return [String] the new user's Cognito sub
+    def admin_create_user(email:, name:)
+      response = admin_client.admin_create_user(
+        user_pool_id: ENV.fetch('COGNITO_USER_POOL_ID'),
+        username: email,
+        user_attributes: [
+          { name: 'email', value: email },
+          { name: 'email_verified', value: 'true' },
+          { name: 'name', value: name }
+        ],
+        desired_delivery_mediums: ['EMAIL']
+      )
+      response.user.attributes.find { |a| a.name == 'sub' }&.value
+    end
+
     private
 
     def client_id = ENV.fetch('COGNITO_CLIENT_ID')

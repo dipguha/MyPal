@@ -5,31 +5,34 @@ import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
 
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Chip } from "@/components/ui/Chip";
+import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/cn";
 
 /* ── shape ────────────────────────────────────────────────────────── */
 
-type StepId =
-  | "welcome"
-  | "profile"
-  | "family"
-  | "briefing"
-  | "interests"
-  | "done";
+// No Profile step (spec v1.3) — display name comes from sign-up, avatar from
+// My Account → My Profile. Child mirrors Teenager.
+type StepId = "welcome" | "family" | "briefing" | "interests" | "done";
+
+type Role = "owner" | "admin" | "adult" | "grandparent" | "teenager" | "child";
+type Plan = "solo" | "family";
 
 interface OnboardingStatus {
-  profile_complete: boolean;
+  role: Role;
+  plan: Plan;
+  steps: StepId[];
   family_complete: boolean;
   briefing_complete: boolean;
   interests_complete: boolean;
   onboarding_complete: boolean;
-  account_type: "solo" | "family";
+  invitation_warning: boolean;
 }
 
-// Spec R-03: invite-time roles are Adult Member, Teenager, Children.
-// Admin is designated post-signup by the Owner (spec R-02).
-type FamilyRole = "adult" | "teenager" | "child";
+// Roles an Owner/Admin may assign to an added member (spec §4).
+type FamilyRole = "admin" | "adult" | "grandparent" | "teenager" | "child";
 
 interface FamilyMemberDraft {
   name: string;
@@ -37,30 +40,32 @@ interface FamilyMemberDraft {
   email: string;
 }
 
-const INDIVIDUAL_STEPS: StepId[] = [
-  "welcome",
-  "profile",
-  "briefing",
-  "interests",
-  "done",
-];
-const FAMILY_STEPS: StepId[] = [
-  "welcome",
-  "profile",
-  "family",
-  "briefing",
-  "interests",
-  "done",
-];
+interface FamilyResult {
+  created: number;
+  invited: number;
+  invitation_failures: number;
+}
 
 const STEP_LABEL: Record<StepId, string> = {
   welcome: "Welcome",
-  profile: "Profile",
   family: "Family",
   briefing: "Briefing",
   interests: "Interests",
   done: "Done",
 };
+
+// Mirrors OnboardingStatusService.steps_for — the server is the source of
+// truth; this is the pre-render fallback.
+function computeSteps(role: Role, plan: Plan): StepId[] {
+  const canFamily = (role === "owner" || role === "admin") && plan === "family";
+  return [
+    "welcome",
+    ...(canFamily ? (["family"] as StepId[]) : []),
+    "briefing",
+    "interests",
+    "done",
+  ];
+}
 
 const ALL_INTERESTS = [
   "📸 Photography",
@@ -95,39 +100,20 @@ const COMMUTE_OPTIONS: { value: "drive" | "transit" | "cycle" | "walk"; label: s
   { value: "walk", label: "🚶 Walk" },
 ];
 
-const AVATAR_EMOJIS = [
-  "👩",
-  "👨",
-  "🧑",
-  "👵",
-  "👴",
-  "👶",
-  "🧒",
-  "👧",
-  "👦",
-  "👨‍🦱",
-  "👩‍🦰",
-  "🧑‍🦳",
+const ROLE_OPTIONS: { value: FamilyRole; label: string }[] = [
+  { value: "admin", label: "Admin" },
+  { value: "adult", label: "Adult Member" },
+  { value: "grandparent", label: "Grand Parent" },
+  { value: "teenager", label: "Teenager" },
+  { value: "child", label: "Children" },
 ];
 
 const MAX_INTERESTS = 5;
 const MAX_FAMILY_MEMBERS = 5;
 
-const ROLE_OPTIONS: { value: FamilyRole; label: string }[] = [
-  { value: "adult", label: "Adult Member" },
-  { value: "teenager", label: "Teenager" },
-  { value: "child", label: "Children" },
-];
-
 /* ── shared UI ────────────────────────────────────────────────────── */
 
-function StepBar({
-  steps,
-  currentIndex,
-}: {
-  steps: StepId[];
-  currentIndex: number;
-}) {
+function StepBar({ steps, currentIndex }: { steps: StepId[]; currentIndex: number }) {
   return (
     <div className="mb-6 flex items-center gap-2">
       {steps.map((s, i) => {
@@ -137,6 +123,7 @@ function StepBar({
           <div key={s} className="flex flex-1 items-center gap-2">
             <div
               aria-current={active ? "step" : undefined}
+              aria-label={STEP_LABEL[s]}
               className={cn(
                 "grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-bold transition-colors",
                 done
@@ -163,81 +150,24 @@ function StepBar({
   );
 }
 
-function PrimaryButton({
-  onClick,
-  disabled,
-  children,
-  className,
-}: {
-  onClick: () => void;
-  disabled?: boolean;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        "w-full rounded-xl bg-gradient-to-br from-warm to-rose px-5 py-3 text-[14px] font-semibold text-white shadow-md shadow-warm/30 transition hover:shadow-warm/50 disabled:opacity-60",
-        className,
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function SecondaryButton({
-  onClick,
-  children,
-}: {
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="mt-2 w-full rounded-xl border border-border bg-card px-5 py-3 text-[14px] text-text transition hover:border-textS"
-    >
-      {children}
-    </button>
-  );
-}
+const fieldLabel = "mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-textS";
 
 /* ── steps ────────────────────────────────────────────────────────── */
 
-function StepWelcome({
-  accountType,
-  next,
-}: {
-  accountType: "solo" | "family";
-  next: () => void;
-}) {
-  const tiles: [string, string, string][] =
-    accountType === "family"
-      ? [
-          ["🧑", "Set up your profile", "Choose a display name and avatar"],
-          ["👨‍👩‍👧‍👦", "Add family members", "Set up profiles for each person"],
-          ["🌅", "Configure daily briefing", "Weather, commute, and news"],
-          ["🎯", "Pick your interests", "Personalise your content feed"],
-        ]
-      : [
-          ["🧑", "Set up your profile", "Choose a display name and avatar"],
-          ["🌅", "Configure daily briefing", "Weather, commute, and news"],
-          ["🎯", "Pick your interests", "Personalise your content feed"],
-        ];
+function StepWelcome({ steps, next }: { steps: StepId[]; next: () => void }) {
+  const tiles: [string, string, string][] = [];
+  if (steps.includes("family"))
+    tiles.push(["👨‍👩‍👧‍👦", "Add family members", "Set up profiles for each person"]);
+  tiles.push(["🌅", "Configure daily briefing", "Weather, commute, and news"]);
+  tiles.push(["🎯", "Pick your interests", "Personalise your content feed"]);
+
   return (
     <div>
       <div className="mb-3 text-[40px]">🎉</div>
-      <h1 className="font-display text-[28px] font-bold text-text">
-        Welcome to MyPal!
-      </h1>
+      <h1 className="font-display text-[28px] font-bold text-text">Welcome to MyPal!</h1>
       <p className="mt-2 mb-5 text-[13.5px] leading-relaxed text-textS">
-        Let&apos;s take 2 minutes to set up your account. You&apos;ll have your
-        personalised family hub ready by the end.
+        Let&apos;s take a minute to set up your account. You&apos;ll have your
+        personalised hub ready by the end.
       </p>
       <div className="space-y-2.5">
         {tiles.map(([icon, title, sub]) => (
@@ -253,102 +183,18 @@ function StepWelcome({
           </div>
         ))}
       </div>
-      <PrimaryButton className="mt-5" onClick={next}>
+      <Button className="mt-5" fullWidth onClick={next}>
         Let&apos;s go →
-      </PrimaryButton>
+      </Button>
     </div>
   );
 }
 
-function StepProfile({
-  initialName,
+function StepFamily({
   onSaved,
 }: {
-  initialName: string;
-  onSaved: () => void;
+  onSaved: (result?: FamilyResult) => void;
 }) {
-  const [displayName, setDisplayName] = useState(initialName);
-  const [emoji, setEmoji] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const submit = async () => {
-    if (!emoji || !displayName.trim()) return;
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/onboarding/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          display_name: displayName.trim(),
-          avatar_emoji: emoji,
-        }),
-      });
-      if (!res.ok) {
-        toast.error("Couldn't save your profile — try again");
-        return;
-      }
-      onSaved();
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div>
-      <h2 className="font-display text-[22px] font-bold text-text">
-        Set up your profile
-      </h2>
-      <p className="mt-1 mb-4 text-[13px] text-textS">
-        Choose a display name and pick an avatar.
-      </p>
-
-      <div className="mb-4">
-        <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-textS">
-          Display name
-        </div>
-        <input
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value.slice(0, 100))}
-          placeholder="James"
-          className="w-full rounded-xl border border-border bg-card2 px-3.5 py-2.5 text-[14px] text-text outline-none focus:border-warm focus:ring-2 focus:ring-warm/20"
-        />
-      </div>
-
-      <div className="mb-4">
-        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-textS">
-          Pick an avatar
-        </div>
-        <div className="grid grid-cols-6 gap-2">
-          {AVATAR_EMOJIS.map((e) => (
-            <button
-              key={e}
-              type="button"
-              onClick={() => setEmoji(e)}
-              aria-pressed={emoji === e}
-              className={cn(
-                "grid h-12 w-full place-items-center rounded-lg border text-[24px] transition-colors",
-                emoji === e
-                  ? "border-warm bg-warm/15"
-                  : "border-border bg-card2 hover:border-warm/40",
-              )}
-            >
-              {e}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <PrimaryButton
-        onClick={submit}
-        disabled={!emoji || !displayName.trim() || submitting}
-      >
-        {submitting ? "Saving…" : "Continue"}
-      </PrimaryButton>
-    </div>
-  );
-}
-
-function StepFamily({ onSaved }: { onSaved: () => void }) {
   const [members, setMembers] = useState<FamilyMemberDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -364,7 +210,7 @@ function StepFamily({ onSaved }: { onSaved: () => void }) {
       onSaved();
       return;
     }
-    // Local validation: non-children require an email.
+    // Local validation: every member needs a name; non-children need an email.
     for (const m of members) {
       if (!m.name.trim()) {
         toast.error("Please give each member a name");
@@ -377,14 +223,14 @@ function StepFamily({ onSaved }: { onSaved: () => void }) {
     }
     setSubmitting(true);
     try {
-      const res = await fetch("/api/onboarding/family-members", {
+      const res = await fetch("/api/onboarding/family_members", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           members: members.map((m) => ({
             name: m.name.trim(),
             role: m.role,
-            email: m.role === "child" ? undefined : m.email.trim(),
+            email: m.email.trim(),
           })),
         }),
       });
@@ -392,12 +238,11 @@ function StepFamily({ onSaved }: { onSaved: () => void }) {
         toast.error("Couldn't save family members — try again");
         return;
       }
+      const result = (await res.json()) as FamilyResult;
       toast.success(
-        `${members.length} family member${
-          members.length === 1 ? "" : "s"
-        } added. Invitations will be sent shortly.`,
+        `${result.created} family member${result.created === 1 ? "" : "s"} added.`,
       );
-      onSaved();
+      onSaved(result);
     } finally {
       setSubmitting(false);
     }
@@ -405,12 +250,9 @@ function StepFamily({ onSaved }: { onSaved: () => void }) {
 
   return (
     <div>
-      <h2 className="font-display text-[22px] font-bold text-text">
-        Add family members
-      </h2>
+      <h2 className="font-display text-[22px] font-bold text-text">Add family members</h2>
       <p className="mt-1 mb-4 text-[13px] text-textS">
-        Everyone gets their own private profile. Add more any time from My
-        Account.
+        Everyone gets their own private profile. Add more any time from My Account.
       </p>
 
       <div className="mb-3 flex items-center gap-3 rounded-xl border border-border bg-card2 px-3 py-2.5 opacity-60">
@@ -423,54 +265,59 @@ function StepFamily({ onSaved }: { onSaved: () => void }) {
         </span>
       </div>
 
-      {members.map((m, i) => (
-        <div
-          key={i}
-          className="mb-2 rounded-xl border border-border bg-card2 p-3"
-        >
-          <div className="grid gap-2 sm:grid-cols-2">
-            <input
-              value={m.name}
-              onChange={(e) => update(i, { name: e.target.value })}
-              placeholder="Name"
-              className="rounded-lg border border-border/60 bg-card px-3 py-2 text-[13px] text-text outline-none focus:border-warm focus:ring-2 focus:ring-warm/20"
-            />
-            <select
-              value={m.role}
-              onChange={(e) =>
-                update(i, { role: e.target.value as FamilyRole })
-              }
-              className="rounded-lg border border-border/60 bg-card px-3 py-2 text-[13px] text-text outline-none focus:border-warm focus:ring-2 focus:ring-warm/20"
-            >
-              {ROLE_OPTIONS.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          {m.role !== "child" ? (
+      {members.map((m, i) => {
+        const isChild = m.role === "child";
+        return (
+          <div key={i} className="mb-2 rounded-xl border border-border bg-card2 p-3">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <input
+                value={m.name}
+                onChange={(e) => update(i, { name: e.target.value })}
+                placeholder="Name"
+                aria-label="Member name"
+                className="rounded-lg border border-border/60 bg-card px-3 py-2 text-[13px] text-text outline-none focus:border-warm focus:ring-2 focus:ring-warm/20"
+              />
+              <div className="relative">
+                <select
+                  value={m.role}
+                  onChange={(e) => update(i, { role: e.target.value as FamilyRole })}
+                  aria-label="Member role"
+                  className="w-full appearance-none rounded-lg border border-border/60 bg-card px-3 py-2 pr-8 text-[13px] text-text outline-none focus:border-warm focus:ring-2 focus:ring-warm/20"
+                >
+                  {ROLE_OPTIONS.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-textS">
+                  ▾
+                </span>
+              </div>
+            </div>
             <input
               value={m.email}
               onChange={(e) => update(i, { email: e.target.value })}
               type="email"
-              placeholder="email@example.com"
+              placeholder={isChild ? "email@example.com (optional)" : "email@example.com"}
+              aria-label="Member email"
               className="mt-2 w-full rounded-lg border border-border/60 bg-card px-3 py-2 text-[13px] text-text outline-none focus:border-warm focus:ring-2 focus:ring-warm/20"
             />
-          ) : (
-            <p className="mt-2 text-[11.5px] text-textS">
-              No invitation — Children profiles are created without a login.
-            </p>
-          )}
-          <button
-            type="button"
-            onClick={() => removeMember(i)}
-            className="mt-2 text-[12px] text-rose hover:underline"
-          >
-            Remove
-          </button>
-        </div>
-      ))}
+            {isChild ? (
+              <p className="mt-1 text-[11.5px] text-textS">
+                Leave blank if the child does not have an email address.
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => removeMember(i)}
+              className="mt-2 text-[12px] text-rose hover:underline"
+            >
+              Remove
+            </button>
+          </div>
+        );
+      })}
 
       {members.length < MAX_FAMILY_MEMBERS ? (
         <button
@@ -482,14 +329,16 @@ function StepFamily({ onSaved }: { onSaved: () => void }) {
         </button>
       ) : (
         <p className="mb-4 text-[12px] text-textS">
-          Maximum of {MAX_FAMILY_MEMBERS} additional members reached.
+          Maximum of {MAX_FAMILY_MEMBERS} additional members reached (6 including you).
         </p>
       )}
 
-      <PrimaryButton onClick={submit} disabled={submitting}>
-        {submitting ? "Saving…" : "Continue"}
-      </PrimaryButton>
-      <SecondaryButton onClick={onSaved}>Skip — add later</SecondaryButton>
+      <Button fullWidth loading={submitting} onClick={submit}>
+        Continue
+      </Button>
+      <Button className="mt-2" variant="secondary" fullWidth onClick={() => onSaved()}>
+        Skip — add later
+      </Button>
     </div>
   );
 }
@@ -497,18 +346,12 @@ function StepFamily({ onSaved }: { onSaved: () => void }) {
 function StepBriefing({ onSaved }: { onSaved: () => void }) {
   const [postcode, setPostcode] = useState("");
   const [workAddress, setWorkAddress] = useState("");
-  const [commute, setCommute] = useState<"drive" | "transit" | "cycle" | "walk">(
-    "drive",
-  );
-  const [newsCategories, setNewsCategories] = useState<string[]>([
-    "General",
-    "Technology",
-    "Sport",
-  ]);
+  const [commute, setCommute] = useState<"drive" | "transit" | "cycle" | "walk">("drive");
+  const [newsTopics, setNewsTopics] = useState<string[]>(["General", "Technology", "Sport"]);
   const [submitting, setSubmitting] = useState(false);
 
   const toggleNews = (cat: string) =>
-    setNewsCategories((cats) =>
+    setNewsTopics((cats) =>
       cats.includes(cat) ? cats.filter((c) => c !== cat) : [...cats, cat],
     );
 
@@ -519,10 +362,10 @@ function StepBriefing({ onSaved }: { onSaved: () => void }) {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          postcode: postcode.trim() || null,
+          home_postcode: postcode.trim() || null,
           work_address: workAddress.trim() || null,
           commute_mode: commute,
-          news_topics: newsCategories,
+          news_topics: newsTopics,
         }),
       });
       if (!res.ok) {
@@ -535,92 +378,65 @@ function StepBriefing({ onSaved }: { onSaved: () => void }) {
     }
   };
 
-  const fieldInput =
-    "w-full rounded-xl border border-border bg-card2 px-3.5 py-2.5 text-[14px] text-text outline-none focus:border-warm focus:ring-2 focus:ring-warm/20";
-  const fieldLabel =
-    "mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-textS";
-
   return (
     <div>
-      <h2 className="font-display text-[22px] font-bold text-text">
-        Set up Daily Briefing
-      </h2>
+      <h2 className="font-display text-[22px] font-bold text-text">Set up Daily Briefing</h2>
       <p className="mt-1 mb-4 text-[13px] text-textS">
         Your morning briefing — personalised to your life.
       </p>
 
       <div className="mb-3">
-        <div className={fieldLabel}>Home postcode</div>
-        <input
+        <Input
+          label="Home postcode"
           value={postcode}
           onChange={(e) => setPostcode(e.target.value)}
           placeholder="NR32 1AA"
-          className={fieldInput}
         />
       </div>
 
       <div className="mb-3">
-        <div className={fieldLabel}>Work address (for commute)</div>
-        <input
+        <Input
+          label="Work address (for commute)"
           value={workAddress}
           onChange={(e) => setWorkAddress(e.target.value)}
           placeholder="Norwich, NR1 3QD"
-          className={fieldInput}
         />
       </div>
 
       <div className="mb-3">
         <div className={fieldLabel}>Commute mode</div>
-        <div className="flex gap-2">
-          {COMMUTE_OPTIONS.map((opt) => {
-            const active = commute === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setCommute(opt.value)}
-                className={cn(
-                  "flex-1 rounded-lg border px-2 py-2 text-[12px] transition-colors",
-                  active
-                    ? "border-warm bg-warm/20 text-warm"
-                    : "border-border bg-card2 text-textS hover:border-warm/40",
-                )}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
+        <div className="flex flex-wrap gap-2">
+          {COMMUTE_OPTIONS.map((opt) => (
+            <Chip
+              key={opt.value}
+              label={opt.label}
+              selected={commute === opt.value}
+              onClick={() => setCommute(opt.value)}
+            />
+          ))}
         </div>
       </div>
 
       <div className="mb-4">
         <div className={fieldLabel}>News categories</div>
         <div className="flex flex-wrap gap-1.5">
-          {NEWS_CATEGORIES.map((cat) => {
-            const active = newsCategories.includes(cat);
-            return (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => toggleNews(cat)}
-                className={cn(
-                  "rounded-full border px-3 py-1 text-[12px] transition-colors",
-                  active
-                    ? "border-warm bg-warm/20 text-warm"
-                    : "border-border bg-card2 text-textS hover:border-warm/40",
-                )}
-              >
-                {cat}
-              </button>
-            );
-          })}
+          {NEWS_CATEGORIES.map((cat) => (
+            <Chip
+              key={cat}
+              label={cat}
+              selected={newsTopics.includes(cat)}
+              onClick={() => toggleNews(cat)}
+            />
+          ))}
         </div>
       </div>
 
-      <PrimaryButton onClick={submit} disabled={submitting}>
-        {submitting ? "Saving…" : "Continue"}
-      </PrimaryButton>
-      <SecondaryButton onClick={onSaved}>Skip for now</SecondaryButton>
+      <Button fullWidth loading={submitting} onClick={submit}>
+        Continue
+      </Button>
+      <Button className="mt-2" variant="secondary" fullWidth onClick={onSaved}>
+        Skip for now
+      </Button>
     </div>
   );
 }
@@ -656,90 +472,75 @@ function StepInterests({ onSaved }: { onSaved: () => void }) {
 
   return (
     <div>
-      <h2 className="font-display text-[22px] font-bold text-text">
-        Your interests
-      </h2>
+      <h2 className="font-display text-[22px] font-bold text-text">Your interests</h2>
       <p className="mt-1 mb-4 text-[13px] text-textS">
-        MyPal will personalise your daily feed and find local events for you.
-        Pick up to {MAX_INTERESTS}.
+        MyPal will personalise your daily feed and find local events for you. Pick up
+        to {MAX_INTERESTS}.
       </p>
       <div className="mb-3 flex flex-wrap gap-2">
         {ALL_INTERESTS.map((tag) => {
           const active = interests.includes(tag);
           const atCap = !active && interests.length >= MAX_INTERESTS;
           return (
-            <button
+            <Chip
               key={tag}
-              type="button"
-              onClick={() => toggle(tag)}
+              label={tag}
+              selected={active}
               disabled={atCap}
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-[12.5px] transition-colors",
-                active
-                  ? "border-warm bg-warm/20 text-warm"
-                  : "border-border bg-card2 text-textS hover:border-warm/40",
-                atCap && "cursor-not-allowed opacity-50",
-              )}
-            >
-              {tag}
-            </button>
+              onClick={() => toggle(tag)}
+            />
           );
         })}
       </div>
       <div className="mb-4 text-[12px] text-textS">
         {interests.length} of {MAX_INTERESTS} selected
       </div>
-      <PrimaryButton onClick={submit} disabled={submitting}>
-        {submitting ? "Saving…" : "Finish setup"}
-      </PrimaryButton>
-      <SecondaryButton onClick={onSaved}>Skip — personalise later</SecondaryButton>
+      <Button fullWidth loading={submitting} onClick={submit}>
+        Finish setup
+      </Button>
+      <Button className="mt-2" variant="secondary" fullWidth onClick={onSaved}>
+        Skip — personalise later
+      </Button>
     </div>
   );
 }
 
-interface DoneSummary {
-  profile: { complete: boolean; detail: string };
-  family?: { complete: boolean; detail: string };
-  briefing: { complete: boolean; detail: string };
-  interests: { complete: boolean; detail: string };
+interface DoneRow {
+  key: string;
+  label: string;
+  complete: boolean;
+  detail: string;
 }
 
 function StepDone({
-  summary,
+  rows,
+  invitationWarning,
   goToApp,
+  finishing,
 }: {
-  summary: DoneSummary;
+  rows: DoneRow[];
+  invitationWarning: boolean;
   goToApp: () => void;
+  finishing: boolean;
 }) {
-  const rows: { complete: boolean; label: string; detail: string }[] = [
-    { ...summary.profile, label: "Profile" },
-    ...(summary.family ? [{ ...summary.family, label: "Family" }] : []),
-    { ...summary.briefing, label: "Daily briefing" },
-    { ...summary.interests, label: "Interests" },
-  ];
   return (
     <div className="text-center">
       <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-warm to-rose text-[28px] shadow-lg shadow-warm/40">
         🎉
       </div>
-      <h2 className="font-display text-[24px] font-bold text-text">
-        You&apos;re all set!
-      </h2>
+      <h2 className="font-display text-[24px] font-bold text-text">You&apos;re all set!</h2>
       <p className="mx-auto mt-1 mb-5 max-w-sm text-[13.5px] leading-relaxed text-textS">
         MyPal is ready. You can fine-tune anything in My Account later.
       </p>
       <div className="space-y-2 text-left">
         {rows.map((r) => (
           <div
-            key={r.label}
+            key={r.key}
             className="flex items-start gap-2 rounded-xl border border-border bg-card2 px-3 py-2 text-[13px]"
           >
             <span
               aria-hidden
-              className={cn(
-                "shrink-0 text-[14px]",
-                r.complete ? "text-sage" : "text-textS/60",
-              )}
+              className={cn("shrink-0 text-[14px]", r.complete ? "text-sage" : "text-textS/60")}
             >
               {r.complete ? "✓" : "—"}
             </span>
@@ -749,10 +550,21 @@ function StepDone({
             </div>
           </div>
         ))}
+        {invitationWarning ? (
+          <div className="flex items-start gap-2 rounded-xl border border-amber/40 bg-amber/10 px-3 py-2 text-[13px]">
+            <span aria-hidden className="shrink-0 text-[14px] text-amber">
+              !
+            </span>
+            <div>
+              <div className="font-semibold text-text">Some invitations couldn&apos;t be sent</div>
+              <div className="text-[12px] text-textS">Retry in My Account → Family Members.</div>
+            </div>
+          </div>
+        ) : null}
       </div>
-      <PrimaryButton className="mt-5" onClick={goToApp}>
+      <Button className="mt-5" fullWidth loading={finishing} onClick={goToApp}>
         Enter MyPal →
-      </PrimaryButton>
+      </Button>
     </div>
   );
 }
@@ -769,20 +581,13 @@ async function fetchStatus(): Promise<
     }
     return { ok: true, data: (await res.json()) as OnboardingStatus };
   } catch (err) {
-    return {
-      ok: false,
-      reason: err instanceof Error ? err.message : "Network error.",
-    };
+    return { ok: false, reason: err instanceof Error ? err.message : "Network error." };
   }
 }
 
-function firstIncompleteStep(
-  status: OnboardingStatus,
-  steps: StepId[],
-): StepId {
-  // Welcome is always the entry point; we only resume past Welcome.
-  if (!status.profile_complete) return "profile";
-  if (steps.includes("family") && !status.family_complete) return "family";
+function firstIncompleteStep(status: OnboardingStatus): StepId {
+  // Welcome is the entry point; we only resume past it.
+  if (status.steps.includes("family") && !status.family_complete) return "family";
   if (!status.briefing_complete) return "briefing";
   if (!status.interests_complete) return "interests";
   return "done";
@@ -796,9 +601,10 @@ export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState<StepId>("welcome");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [invitationWarning, setInvitationWarning] = useState(false);
+  const [finishing, setFinishing] = useState(false);
 
-  // Returning users who have already finished onboarding shouldn't see the
-  // wizard if they navigate to /onboarding directly.
+  // Returning users who already finished onboarding shouldn't see the wizard.
   useEffect(() => {
     if (session?.user?.onboardingComplete) {
       router.replace("/today");
@@ -821,27 +627,23 @@ export default function OnboardingPage() {
     (async () => {
       const s = await reloadStatus();
       if (s) {
-        const steps = s.account_type === "family" ? FAMILY_STEPS : INDIVIDUAL_STEPS;
-        const resume = firstIncompleteStep(s, steps);
-        // Returning user with partial progress: skip Welcome and resume.
-        if (
-          resume !== "welcome" &&
-          (s.profile_complete ||
-            s.briefing_complete ||
-            s.interests_complete ||
-            (s.account_type === "family" && s.family_complete))
-        ) {
-          setCurrentStep(resume);
-        }
+        const resume = firstIncompleteStep(s);
+        const hasProgress =
+          s.briefing_complete ||
+          s.interests_complete ||
+          (s.steps.includes("family") && s.family_complete);
+        if (resume !== "welcome" && hasProgress) setCurrentStep(resume);
       }
       setLoading(false);
     })();
   }, [reloadStatus]);
 
-  const accountType = status?.account_type ?? session?.user?.accountType ?? "solo";
-  const steps = accountType === "family" ? FAMILY_STEPS : INDIVIDUAL_STEPS;
+  const steps = status
+    ? status.steps.length
+      ? status.steps
+      : computeSteps(status.role, status.plan)
+    : (["welcome"] as StepId[]);
   const currentIndex = steps.indexOf(currentStep);
-  const initialName = session?.user?.name?.split(" ")[0] ?? "";
 
   const advance = async () => {
     await reloadStatus();
@@ -849,22 +651,25 @@ export default function OnboardingPage() {
     setCurrentStep(next);
   };
 
+  const onFamilySaved = async (result?: FamilyResult) => {
+    if (result && result.invitation_failures > 0) setInvitationWarning(true);
+    await advance();
+  };
+
   const goToApp = async () => {
+    setFinishing(true);
     try {
-      const res = await fetch("/api/onboarding/complete", { method: "POST" });
+      const res = await fetch("/api/onboarding/complete", { method: "PATCH" });
       if (!res.ok) {
-        // Surface the failure rather than silently sending the user to /today
-        // with the flag still false (which loops them back to /onboarding on
-        // next sign-in).
-        toast.error(
-          "Couldn't mark onboarding complete — please try again.",
-        );
+        toast.error("Couldn't mark onboarding complete — please try again.");
         return;
       }
       await updateSession();
     } catch {
       toast.error("Network error — please try again.");
       return;
+    } finally {
+      setFinishing(false);
     }
     router.push("/today");
   };
@@ -887,71 +692,67 @@ export default function OnboardingPage() {
           <p className="mt-1 text-[12.5px] text-textS">
             {loadError ?? "Unknown error. Check your network connection."}
           </p>
-          <button
-            type="button"
+          <Button
+            className="mt-3"
+            variant="secondary"
             onClick={async () => {
               setLoading(true);
               await reloadStatus();
               setLoading(false);
             }}
-            className="mt-3 rounded-md border border-border bg-card px-3 py-1.5 text-[12px] text-text hover:border-warm/60 hover:text-warm"
           >
             Retry
-          </button>
+          </Button>
         </div>
       </div>
     );
   }
 
-  const summary: DoneSummary = {
-    profile: {
-      complete: status.profile_complete,
-      detail: status.profile_complete
-        ? "Display name and avatar saved"
-        : "Set up any time in My Account",
-    },
-    briefing: {
-      complete: status.briefing_complete,
-      detail: status.briefing_complete
-        ? "Daily briefing ready"
-        : "Set up any time in My Account",
-    },
-    interests: {
-      complete: status.interests_complete,
-      detail: status.interests_complete
-        ? "Personalised feed ready"
-        : "Set up any time in My Account",
-    },
-  };
-  if (accountType === "family") {
-    summary.family = {
+  const doneRows: DoneRow[] = [];
+  if (steps.includes("family")) {
+    doneRows.push({
+      key: "family",
+      label: "Family",
       complete: status.family_complete,
       detail: status.family_complete
-        ? "Members added — invitations will be sent shortly"
-        : "No members added — set up any time in My Account",
-    };
+        ? "Members added — invitations on their way"
+        : "Add members any time in My Account",
+    });
   }
+  doneRows.push({
+    key: "briefing",
+    label: "Daily briefing",
+    complete: status.briefing_complete,
+    detail: status.briefing_complete
+      ? "Your morning briefing is ready"
+      : "Set up any time in My Account",
+  });
+  doneRows.push({
+    key: "interests",
+    label: "Interests",
+    complete: status.interests_complete,
+    detail: status.interests_complete
+      ? "Your feed is personalised"
+      : "Set up any time in My Account",
+  });
 
   return (
     <div className="mx-auto max-w-xl">
       <StepBar steps={steps} currentIndex={currentIndex} />
       <Card>
         {currentStep === "welcome" ? (
-          <StepWelcome
-            accountType={accountType}
-            next={() => setCurrentStep(steps[1])}
-          />
+          <StepWelcome steps={steps} next={() => setCurrentStep(steps[1])} />
         ) : null}
-        {currentStep === "profile" ? (
-          <StepProfile initialName={initialName} onSaved={advance} />
-        ) : null}
-        {currentStep === "family" ? <StepFamily onSaved={advance} /> : null}
+        {currentStep === "family" ? <StepFamily onSaved={onFamilySaved} /> : null}
         {currentStep === "briefing" ? <StepBriefing onSaved={advance} /> : null}
-        {currentStep === "interests" ? (
-          <StepInterests onSaved={advance} />
-        ) : null}
+        {currentStep === "interests" ? <StepInterests onSaved={advance} /> : null}
         {currentStep === "done" ? (
-          <StepDone summary={summary} goToApp={goToApp} />
+          <StepDone
+            rows={doneRows}
+            invitationWarning={invitationWarning}
+            goToApp={goToApp}
+            finishing={finishing}
+          />
         ) : null}
       </Card>
     </div>

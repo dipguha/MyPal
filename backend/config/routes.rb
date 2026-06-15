@@ -5,6 +5,13 @@ Rails.application.routes.draw do
       post "auth/confirm",             to: "auth#confirm"
       post "auth/resend-verification", to: "auth#resend"
       get  "auth/me",                  to: "auth#me"
+
+      get   "onboarding/status",         to: "onboarding#status"
+      post  "onboarding/family_members", to: "onboarding#family_members"
+      patch "onboarding/briefing",       to: "onboarding#briefing"
+      patch "onboarding/interests",      to: "onboarding#interests"
+      patch "onboarding/complete",       to: "onboarding#complete"
+
       get  "ping",                     to: "health#ping"
     end
   end

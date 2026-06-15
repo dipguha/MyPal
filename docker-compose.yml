@@ -33,6 +33,12 @@ services:
     volumes:
       - ./backend:/app
       - bundle_data:/usr/local/bundle
+      # Read-only host AWS creds (default profile) so the SDK can run Cognito
+      # admin ops locally — family-member invitations (AdminCreateUser) and
+      # orphan cleanup (AdminDeleteUser). Devs without ~/.aws get an empty mount
+      # and these ops fail gracefully (logged, non-blocking). AWS_REGION still
+      # comes from backend/.env.
+      - ${HOME}/.aws:/root/.aws:ro
     ports:
       - "3001:3001"
     env_file:

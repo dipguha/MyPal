@@ -81,7 +81,27 @@
       "Bash(grep -n '```mermaid' docs/architecture.md)",
       "Bash(grep -n '```mermaid' .claude/commands/references/architecture_template.md)",
       "Bash(grep -n '```mermaid' infrastructure/deployment-architecture.md)",
-      "Bash(grep -n '```mermaid\\\\|```$\\\\|## ' .claude/commands/references/architecture_template.md)"
+      "Bash(grep -n '```mermaid\\\\|```$\\\\|## ' .claude/commands/references/architecture_template.md)",
+      "Bash(grep -nA6 \"def me\" backend/app/controllers/api/v1/auth_controller.rb)",
+      "Bash(docker exec *)",
+      "Bash(grep -nA2 -iE \"StringLiterals\" backend/.rubocop.yml)",
+      "Bash(pkill -f \"next lint\")",
+      "Bash(pkill -f \"eslint\")",
+      "Bash(grep -nA8 '\"scripts\"' package.json)",
+      "Bash(grep -nB1 -A1 'onboarding/complete' 'src/app/\\(app\\)/onboarding/page.tsx')",
+      "Bash(grep -nE \"^#{1,3} \" docs/architecture.md)",
+      "Bash(./scripts/delete-cognito-users.sh --all)",
+      "Bash(./scripts/delete-cognito-users.sh --bogus)",
+      "Bash(./scripts/delete-cognito-users.sh test@example.com)",
+      "Bash(aws configure *)",
+      "Bash(sed -E 's/\\([A-Z0-9]{4}\\)[A-Z0-9]{6,}/\\\\1******/g')",
+      "Read(//Users/chandradipguha/.aws/**)",
+      "Bash(grep -nA12 -iE \"run.*local|quick ?start|getting started|## Run|docker compose up\" README.md)",
+      "Bash(/usr/local/bin/node -v)",
+      "Read(//Users/chandradipguha/.nvm/alias/**)",
+      "Bash(~/.nvm/versions/node/v15.4.0/bin/node -v)",
+      "Bash(~/.nvm/versions/node/v20.20.2/bin/node -e \"require\\('node:events'\\); console.log\\('node:events OK on', process.version\\)\")",
+      "Bash(grep -nA1 \"GroupMember.create\" app/services/account_bootstrap_service.rb)"
     ]
   }
 }
