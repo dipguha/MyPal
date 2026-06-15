@@ -12,6 +12,9 @@ class Member < ApplicationRecord
   def owner? = role_code == 'owner'
   def admin? = role_code == 'admin'
 
+  # Owner and Admin may invite and configure family members during onboarding.
+  def can_manage_family? = owner? || admin?
+
   # True when this member belongs to their account's Household Managers Group.
   def is_hmg?
     group = account.hmg_group

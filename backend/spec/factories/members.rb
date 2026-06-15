@@ -18,6 +18,11 @@ FactoryBot.define do
       is_admin { false }
     end
 
+    trait :grandparent do
+      role_id { 4 }
+      is_admin { false }
+    end
+
     trait :teenager do
       role_id { 5 }
       is_admin { false }
