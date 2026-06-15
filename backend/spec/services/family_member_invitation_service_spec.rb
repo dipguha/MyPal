@@ -20,6 +20,24 @@ RSpec.describe FamilyMemberInvitationService do
     expect(account.members.find_by(display_name: 'Adm').is_admin).to be(true)
   end
 
+  context 'with an HMG group on the account' do
+    let!(:hmg) { Group.create!(account: account, type: 'hmg') }
+
+    # Access-control G-01: an added Admin is an HMG member by default.
+    it 'adds an added Admin to the HMG group' do
+      described_class.call(owner: owner, members: [{ name: 'Adm', role: 'admin', email: 'adm@example.com' }])
+      admin = account.members.find_by(display_name: 'Adm')
+      expect(GroupMember.exists?(group: hmg, member: admin)).to be(true)
+    end
+
+    # G-02: non-Admin roles are added to HMG manually, not on creation.
+    it 'does not add a non-Admin member to the HMG group' do
+      described_class.call(owner: owner, members: [{ name: 'Ada', role: 'adult', email: 'ada@example.com' }])
+      adult = account.members.find_by(display_name: 'Ada')
+      expect(GroupMember.exists?(group: hmg, member: adult)).to be(false)
+    end
+  end
+
   it 'links a user only when an invitation is sent' do
     result = described_class.call(owner: owner, members: [{ name: 'Kid', role: 'child', email: '' }])
 

@@ -24,6 +24,9 @@ class FamilyMemberInvitationService
         onboarding_complete: false
       )
       MemberSetting.create!(member: member)
+      # An added Admin is a Household Managers Group member by default
+      # (access-control G-01). Other roles are added to HMG manually (G-02).
+      add_to_hmg(owner, member) if role == 'admin'
       created += 1
 
       email = m[:email].presence
@@ -42,4 +45,12 @@ class FamilyMemberInvitationService
 
     Result.new(created: created, invited: invited, failures: failures)
   end
+
+  # Adds an added Admin to the account's Household Managers Group (G-01). The HMG
+  # is created at sign-up (AccountBootstrapService); guard in case it is absent.
+  def self.add_to_hmg(owner, member)
+    hmg = owner.account.hmg_group
+    GroupMember.create!(group: hmg, member: member, added_by: owner) if hmg
+  end
+  private_class_method :add_to_hmg
 end
